@@ -74,12 +74,3 @@ class History:
         """Remove entries that have been matched to prevent re-triggering"""
         if len(self.entries) > 10:  # Keep last 10 entries for matching
             self.entries = self.entries[-10:]
-
-    def display_all(self) -> None:
-        """Display all history entries with indentation"""
-        click.clear()
-        click.echo("History (B1/B2/B3: + = pressed, - = released):")
-        click.echo("-" * 60)
-        for i, entry in enumerate(self.entries, 1):
-            click.echo(f"    {i:3d}. {entry}")
-        click.echo("-" * 60)

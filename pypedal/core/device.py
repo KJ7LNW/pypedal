@@ -42,53 +42,38 @@ class DeviceHandler:
 
         (tv_sec, tv_usec, type_, code, value) = struct.unpack(self.EVENT_FORMAT, event_data)
 
-        # Skip synchronization events (type 0) to reduce noise
-        if type_ == 0:
+        # Skip non-key events
+        if type_ != 1:  # Not a key event
             return
 
-        type_name = EV_TYPES.get(type_, f"Unknown({type_})")
+        button = KEY_CODES.get(code, f"Unknown({code})")
+        state = "pressed" if value == 1 else "released"
 
-        if type_ == 1:  # Key events
-            button = KEY_CODES.get(code, f"Unknown({code})")
-            state = "pressed" if value == 1 else "released"
+        # Update button state
+        self.button_state.update(button, value == 1)
 
-            # Update button state
-            self.button_state.update(button, value == 1)
+        # Add to history and display event immediately
+        entry = self.history.add_entry(button, state, self.button_state.get_state())
+        click.echo(str(entry))
 
-            # Add to history
-            self.history.add_entry(button, state, self.button_state.get_state())
+        # Clean up old entries for released buttons
+        self.history.cleanup_old_entries(self.button_state.get_state())
 
-            # Clean up old entries for released buttons
-            self.history.cleanup_old_entries(self.button_state.get_state())
-
-            # Check for matching patterns and execute commands
-            if self.config:
-                command, entries_to_consume = self.config.get_matching_command(self.history.entries)
-                if command:
-                    try:
-                        subprocess.run(command, shell=True, check=True)
-                        # Consume matched entries to prevent re-triggering
-                        if entries_to_consume:
-                            self.history.entries = self.history.entries[entries_to_consume:]
-                    except subprocess.CalledProcessError as e:
-                        click.echo(f"Error executing command: {e}", err=True)
-
-            # Display updated history
-            self.history.display_all()
-        else:
-            if not self.quiet:
-                click.echo(f"Event: {type_name}, code={code}, value={value}")
+        # Check for matching patterns and execute commands
+        if self.config:
+            command, entries_to_consume = self.config.get_matching_command(self.history.entries)
+            if command:
+                try:
+                    click.echo(f"    Executing: {command}")
+                    subprocess.run(command, shell=True, check=True, capture_output=True)
+                    # Consume matched entries to prevent re-triggering
+                    if entries_to_consume:
+                        self.history.entries = self.history.entries[entries_to_consume:]
+                except subprocess.CalledProcessError as e:
+                    click.echo(f"    Error executing command: {e}", err=True)
 
     def read_events(self) -> None:
         """Read and process events from the device"""
-        if not self.quiet:
-            click.echo(f"Reading events from: {self.device_path}")
-            if self.config:
-                click.echo("Configuration loaded")
-            click.echo("Press Ctrl+C to stop")
-            click.echo("\nHistory (B1/B2/B3: + = pressed, - = released):")
-            click.echo("-" * 60)
-
         try:
             with open(self.device_path, 'rb', buffering=0) as dev:
                 while True:

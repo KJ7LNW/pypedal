@@ -8,7 +8,6 @@ from .core import Config, DeviceHandler
 
 def handle_interrupt(signum, frame):
     """Handle interrupt signal"""
-    click.echo("\nReceived interrupt signal. Cleaning up...")
     sys.exit(0)
 
 @click.group()
@@ -53,8 +52,6 @@ def read(device, config, format, quiet, timeout):
     # Initialize configuration if provided
     config_handler = None
     if config:
-        if not quiet:
-            click.echo(f"Using configuration file: {config}")
         config_handler = Config(config)
 
     # Create and run device handler

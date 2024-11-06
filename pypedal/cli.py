@@ -6,6 +6,8 @@ import struct
 import select
 import signal
 import sys
+import os
+import subprocess
 from dataclasses import dataclass
 from typing import Dict, List
 from datetime import datetime
@@ -23,6 +25,34 @@ KEY_CODES = {
     257: "2",  # Middle pedal
     258: "3"   # Right pedal
 }
+
+@dataclass
+class Config:
+    """Handles configuration file parsing and storage"""
+    actions: Dict[str, bool]
+
+    def __init__(self, config_file: str = None):
+        self.actions = {}
+        if config_file and os.path.exists(config_file):
+            self.load(config_file)
+
+    def load(self, config_file: str) -> None:
+        """Load configuration from file"""
+        with open(config_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    # Split on first colon and strip whitespace
+                    parts = line.split(':', 1)
+                    if len(parts) == 2:
+                        pedal = parts[0].strip()
+                        # Remove inline comments and strip whitespace
+                        action = parts[1].split('#')[0].strip()
+                        self.actions[pedal] = action
+
+    def get_action(self, pedal: str) -> str:
+        """Get configured action for a pedal"""
+        return self.actions.get(pedal)
 
 @dataclass
 class ButtonState:
@@ -90,20 +120,34 @@ def handle_interrupt(signum, frame):
 @click.group()
 @click.version_option()
 def main():
-    """pypedal - A Python-based command line tool"""
+    """pypedal - A Python-based command line tool for USB foot pedals"""
     pass
 
 @main.command()
 @click.argument('device', default='/dev/input/by-id/usb-VEC_VEC_USB_Footpedal-event-if00', 
                 type=click.Path(exists=True, dir_okay=False, resolve_path=True))
+@click.option('--config', '-c', type=click.Path(exists=True, dir_okay=False),
+              help='Path to configuration file. Format: "pedal: command # comment" where pedal is 1-3')
 @click.option('--format', '-f', type=click.Choice(['raw', 'decoded']), default='decoded',
               help='Output format for events')
 @click.option('--quiet/--verbose', '-q/-v', default=False,
               help='Suppress additional output')
-def read(device, format, quiet):
-    """Read events from an input device.
+def read(device, config, format, quiet):
+    """Read events from a USB foot pedal and execute configured commands.
     
     DEVICE: Path to input device (default: USB footpedal)
+
+    The configuration file uses the format:
+        pedal: command # optional comment
+    
+    Example config file:
+        1: xdotool click 2  # Press middle mouse button
+        2: xdotool key space  # Press spacebar
+        3: xdotool key Return  # Press enter key
+
+    When a pedal is pressed, its configured command will be executed.
+    Commands can be any shell command, including xdotool for simulating
+    keyboard/mouse input.
     """
     EVENT_SIZE = 24  # struct input_event size
     EVENT_FORMAT = 'llHHI'  # struct input_event format
@@ -115,9 +159,12 @@ def read(device, format, quiet):
     # Initialize button state and history tracking
     button_state = ButtonState()
     history = History()
+    config_handler = Config(config)
 
     if not quiet:
         click.echo(f"Reading events from: {device}")
+        if config:
+            click.echo(f"Using configuration file: {config}")
         click.echo("Press Ctrl+C to stop")
         click.echo("\nHistory (B1/B2/B3: + = pressed, - = released):")
         click.echo("-" * 60)
@@ -151,6 +198,15 @@ def read(device, format, quiet):
                         
                         # Update button state
                         button_state.update(button, value == 1)
+                        
+                        # Execute configured action on button press
+                        if value == 1 and config:  # Only on press, not release
+                            action = config_handler.get_action(button)
+                            if action:
+                                try:
+                                    subprocess.run(action, shell=True, check=True)
+                                except subprocess.CalledProcessError as e:
+                                    click.echo(f"Error executing action for button {button}: {e}", err=True)
                         
                         # Add to history and display all entries
                         history.add_entry(button, state, button_state.get_state())

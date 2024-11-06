@@ -31,6 +31,26 @@ class CommandPattern:
     command: str = ""
     line_number: int = 0  # Track original line number for priority
 
+    @property
+    def specificity(self) -> int:
+        """Calculate pattern specificity for sorting"""
+        score = 0
+        # Patterns with explicit v/^ are more specific
+        score += sum(1 for event in self.sequence if event.event in ('v', '^'))
+        # Longer sequences are more specific
+        score += len(self.sequence) * 10
+        # Time constraints add specificity
+        if self.time_constraint is not None:
+            score += 5
+            # More restrictive time constraints are more specific
+            if self.time_constraint < 0.2:
+                score += 3
+            elif self.time_constraint < 0.5:
+                score += 2
+            elif self.time_constraint < 1.0:
+                score += 1
+        return score
+
     @classmethod
     def parse(cls, pattern: str, command: str, line_number: int = 0) -> Optional['CommandPattern']:
         """Parse a command pattern string"""
@@ -73,13 +93,23 @@ class CommandPattern:
                 line_number=line_number
             )
         
-        # Handle sequence with optional time constraint
-        # Format: 1,2,3,2,1 or 1,2,3,2,1 < 0.5
-        sequence_match = re.match(r'^([\d,]+)(?:\s*<\s*([\d.]+))?$', pattern)
+        # Handle sequence with optional time constraint and mixed v/^ notation
+        # Format: 1,2,3,2,1 or 1,2,3,2,1 < 0.5 or 1v,2,3^
+        sequence_match = re.match(r'^([\d,v^]+)(?:\s*<\s*([\d.]+))?$', pattern)
         if sequence_match:
             buttons_str, time = sequence_match.groups()
-            # Default to press events for sequence
-            sequence = [ButtonEvent(b.strip(), "v") for b in buttons_str.split(',')]
+            # Parse sequence with potential v/^ notation
+            sequence = []
+            parts = buttons_str.split(',')
+            for part in parts:
+                if part.endswith('v') or part.endswith('^'):
+                    button = part[:-1]
+                    event = part[-1]
+                else:
+                    button = part
+                    event = "v"  # Default to press for implicit events
+                sequence.append(ButtonEvent(button, event))
+            
             return cls(
                 sequence=sequence,
                 time_constraint=float(time) if time else None,
@@ -151,11 +181,10 @@ class Config:
         """
         current_time = datetime.now()
         
-        # First try to match longer patterns
+        # Sort patterns by specificity (descending) and line number (ascending)
         sorted_patterns = sorted(
             self.patterns,
-            # Sort by sequence length (descending) then line number (ascending)
-            key=lambda p: (-len(p.sequence), p.line_number)
+            key=lambda p: (-p.specificity, p.line_number)
         )
         
         for pattern in sorted_patterns:

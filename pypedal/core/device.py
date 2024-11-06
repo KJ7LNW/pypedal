@@ -87,7 +87,7 @@ class DeviceHandler:
             click.echo("-" * 60)
 
         try:
-            with open(self.device_path, 'rb') as dev:
+            with open(self.device_path, 'rb', buffering=0) as dev:
                 while True:
                     # Use select to implement a timeout and check for interrupts
                     ready, _, _ = select.select([dev], [], [], 0.1)

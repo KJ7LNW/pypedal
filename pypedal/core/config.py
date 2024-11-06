@@ -29,9 +29,10 @@ class CommandPattern:
     sequence: List[ButtonEvent]
     time_constraint: Optional[float] = None
     command: str = ""
+    line_number: int = 0  # Track original line number for priority
 
     @classmethod
-    def parse(cls, pattern: str, command: str) -> Optional['CommandPattern']:
+    def parse(cls, pattern: str, command: str, line_number: int = 0) -> Optional['CommandPattern']:
         """Parse a command pattern string"""
         # Remove comments and whitespace
         pattern = pattern.split('#')[0].strip()
@@ -47,7 +48,8 @@ class CommandPattern:
                     ButtonEvent(button, "^")
                 ],
                 time_constraint=float(time),
-                command=command
+                command=command,
+                line_number=line_number
             )
         
         # Handle shorthand notation N
@@ -57,7 +59,8 @@ class CommandPattern:
                     ButtonEvent(pattern, "v"),
                     ButtonEvent(pattern, "^")
                 ],
-                command=command
+                command=command,
+                line_number=line_number
             )
         
         # Handle single event Nv or N^
@@ -66,7 +69,8 @@ class CommandPattern:
             button, event = single_match.groups()
             return cls(
                 sequence=[ButtonEvent(button, event)],
-                command=command
+                command=command,
+                line_number=line_number
             )
         
         # Handle sequence with optional time constraint
@@ -79,15 +83,19 @@ class CommandPattern:
             return cls(
                 sequence=sequence,
                 time_constraint=float(time) if time else None,
-                command=command
+                command=command,
+                line_number=line_number
             )
             
         return None
 
-    def matches_history(self, history: List[HistoryEntry], current_time: datetime) -> bool:
-        """Check if this pattern matches the recent history"""
+    def matches_history(self, history: List[HistoryEntry], current_time: datetime) -> Tuple[bool, Optional[int]]:
+        """
+        Check if this pattern matches the recent history.
+        Returns (matches, match_length) where match_length is the number of history entries to consume.
+        """
         if not history or len(history) < len(self.sequence):
-            return False
+            return False, None
 
         # Try to find a match starting at each possible position
         for i in range(len(history) - len(self.sequence) + 1):
@@ -108,9 +116,10 @@ class CommandPattern:
                         break
 
             if matches:
-                return True
+                # Return the number of history entries that matched
+                return True, len(self.sequence)
 
-        return False
+        return False, None
 
 class Config:
     """Handles configuration file parsing and storage"""
@@ -122,7 +131,7 @@ class Config:
     def load(self, config_file: str) -> None:
         """Load configuration from file"""
         with open(config_file, 'r') as f:
-            for line in f:
+            for line_number, line in enumerate(f, 1):
                 line = line.strip()
                 if line and not line.startswith('#'):
                     # Split on first colon and strip whitespace
@@ -130,14 +139,28 @@ class Config:
                     if len(parts) == 2:
                         pattern_str = parts[0].strip()
                         command = parts[1].split('#')[0].strip()
-                        pattern = CommandPattern.parse(pattern_str, command)
+                        pattern = CommandPattern.parse(pattern_str, command, line_number)
                         if pattern:
                             self.patterns.append(pattern)
 
-    def get_matching_command(self, history: List[HistoryEntry]) -> Optional[str]:
-        """Get command for the first matching pattern in history"""
+    def get_matching_command(self, history: List[HistoryEntry]) -> Tuple[Optional[str], Optional[int]]:
+        """
+        Get command for the first matching pattern in history.
+        Returns (command, entries_to_consume) where entries_to_consume is the number
+        of history entries that should be consumed after executing the command.
+        """
         current_time = datetime.now()
-        for pattern in self.patterns:
-            if pattern.matches_history(history, current_time):
-                return pattern.command
-        return None
+        
+        # First try to match longer patterns
+        sorted_patterns = sorted(
+            self.patterns,
+            # Sort by sequence length (descending) then line number (ascending)
+            key=lambda p: (-len(p.sequence), p.line_number)
+        )
+        
+        for pattern in sorted_patterns:
+            matches, match_length = pattern.matches_history(history, current_time)
+            if matches:
+                return pattern.command, match_length
+        
+        return None, None

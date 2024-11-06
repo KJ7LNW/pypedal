@@ -59,7 +59,8 @@ def test_process_unknown_event():
 def test_command_execution():
     """Test command execution when patterns match"""
     mock_config = Mock()
-    mock_config.get_matching_command.return_value = "echo test"
+    # Mock should return (command, entries_to_consume)
+    mock_config.get_matching_command.return_value = ("echo test", 1)
     
     handler = DeviceHandler('/dev/null', config=mock_config, quiet=True)
     
@@ -72,6 +73,41 @@ def test_command_execution():
         # Verify command was executed
         mock_config.get_matching_command.assert_called_once()
         mock_run.assert_called_once_with("echo test", shell=True, check=True)
+
+def test_command_execution_with_history_consumption():
+    """Test that history is consumed after command execution"""
+    mock_config = Mock()
+    
+    # Configure mock to return command only after seeing both button 1 and 2
+    def mock_get_matching_command(history):
+        if len(history) >= 2:
+            if (history[0].button == "1" and history[0].event == "pressed" and
+                history[1].button == "2" and history[1].event == "pressed"):
+                return "test command", 2
+        return None, None
+    
+    mock_config.get_matching_command.side_effect = mock_get_matching_command
+    
+    handler = DeviceHandler('/dev/null', config=mock_config, quiet=True)
+    
+    # Add some events
+    press_event1 = create_event(1, 256, 1)  # Button 1 press
+    press_event2 = create_event(1, 257, 1)  # Button 2 press
+    press_event3 = create_event(1, 258, 1)  # Button 3 press
+    
+    with patch('subprocess.run') as mock_run:
+        # Process events
+        handler.process_event(press_event1)
+        handler.process_event(press_event2)
+        handler.process_event(press_event3)
+        
+        # Verify history was consumed correctly
+        assert len(handler.history.entries) == 1  # Only button 3 press should remain
+        assert handler.history.entries[0].button == "3"
+        assert handler.history.entries[0].event == "pressed"
+        
+        # Verify command was executed once
+        mock_run.assert_called_once_with("test command", shell=True, check=True)
 
 def test_event_type_mappings():
     """Test event type mappings"""

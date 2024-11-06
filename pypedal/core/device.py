@@ -60,11 +60,13 @@ class DeviceHandler:
 
             # Check for matching patterns and execute commands
             if self.config:
-                command = self.config.get_matching_command(self.history.entries)
+                command, entries_to_consume = self.config.get_matching_command(self.history.entries)
                 if command:
                     try:
                         subprocess.run(command, shell=True, check=True)
-                        self.history.consume_latest_matches()
+                        # Consume matched entries to prevent re-triggering
+                        if entries_to_consume:
+                            self.history.entries = self.history.entries[entries_to_consume:]
                     except subprocess.CalledProcessError as e:
                         click.echo(f"Error executing command: {e}", err=True)
 
@@ -95,17 +97,10 @@ class DeviceHandler:
                     event = dev.read(self.EVENT_SIZE)
                     self.process_event(event)
 
-        except PermissionError:
-            click.echo("Error: Permission denied. Try running with sudo or set device permissions with:", err=True)
-            click.echo("chmod 666 " + self.device_path, err=True)
         except FileNotFoundError:
-            click.echo(f"Error: Device not found at {self.device_path}", err=True)
-        except KeyboardInterrupt:
-            if not self.quiet:
-                click.echo("\nStopped reading events.")
-                click.echo(f"Final state: {self.button_state}")
+            raise
+        except PermissionError:
+            raise
         except Exception as e:
             click.echo(f"Error: {str(e)}", err=True)
-        finally:
-            if not self.quiet:
-                click.echo("\nExiting...")
+            raise

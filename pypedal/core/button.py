@@ -44,10 +44,10 @@ class History:
     def __init__(self):
         self.entries: List[HistoryEntry] = []
 
-    def add_entry(self, button: str, event: str, button_states: Dict[str, bool]) -> HistoryEntry:
+    def add_entry(self, button: str, event: str, button_states: Dict[str, bool], timestamp: datetime = None) -> HistoryEntry:
         """Add a new entry to history"""
         entry = HistoryEntry(
-            timestamp=datetime.now(),
+            timestamp=timestamp or datetime.now(),
             button=button,
             event=event,
             button_states=button_states.copy()

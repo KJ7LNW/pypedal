@@ -4,7 +4,7 @@ Configuration and command pattern handling
 import os
 import re
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 from datetime import datetime
 from .button import HistoryEntry
 from pprint import pprint
@@ -35,22 +35,7 @@ class CommandPattern:
     @property
     def specificity(self) -> int:
         """Calculate pattern specificity for sorting"""
-        score = 0
-        # Patterns with explicit v/^ are more specific
-        score += sum(1 for event in self.sequence if event.event in ('v', '^'))
-        # Longer sequences are more specific
-        score += len(self.sequence) * 10
-        # Time constraints add specificity
-        if self.time_constraint is not None:
-            score += 5
-            # More restrictive time constraints are more specific
-            if self.time_constraint < 0.2:
-                score += 3
-            elif self.time_constraint < 0.5:
-                score += 2
-            elif self.time_constraint < 1.0:
-                score += 1
-        return score
+        return -self.line_number
 
     @classmethod
     def parse(cls, pattern: str, command: str, line_number: int = 0) -> Optional['CommandPattern']:
@@ -99,18 +84,20 @@ class CommandPattern:
         sequence_match = re.match(r'^([\d,v^]+)(?:\s*<\s*([\d.]+))?$', pattern)
         if sequence_match:
             buttons_str, time = sequence_match.groups()
-            # Parse sequence with potential v/^ notation
-            sequence = []
             parts = buttons_str.split(',')
+            
+            sequence = []
             for part in parts:
                 if part.endswith('v') or part.endswith('^'):
                     button = part[:-1]
                     event = part[-1]
+                    sequence.append(ButtonEvent(button, event))
                 else:
+                    # implicit press/release
                     button = part
-                    event = "v"  # Default to press for implicit events
-                sequence.append(ButtonEvent(button, event))
-            
+                    sequence.append(ButtonEvent(button, "v"))
+                    sequence.append(ButtonEvent(button, "^"))
+
             return cls(
                 sequence=sequence,
                 time_constraint=float(time) if time else None,
@@ -120,12 +107,17 @@ class CommandPattern:
             
         return None
 
-    def matches_history(self, history: List[HistoryEntry], current_time: datetime) -> Tuple[bool, Optional[int]]:
+    def matches_history(self, history: List[HistoryEntry], current_time: datetime, pressed_buttons: Dict[str, bool]) -> Tuple[bool, Optional[int]]:
         """
-        Check if this pattern matches the recent history.
+        Check if this pattern matches the recent history and current pressed button state.
         Returns (matches, match_length) where match_length is the number of history entries to consume.
         """
         if not history or len(history) < len(self.sequence):
+            return False, None
+
+        # Skip this pattern if any currently pressed buttons are not used in this pattern
+        pattern_buttons = set(event.button for event in self.sequence)
+        if any(button for button, is_pressed in pressed_buttons.items() if is_pressed and button not in pattern_buttons):
             return False, None
 
         # Try to find a match starting at each possible position
@@ -147,6 +139,12 @@ class CommandPattern:
                         break
 
             if matches:
+                # Check if the last event is within the time constraint
+                if self.time_constraint is not None:
+                    last_event_time = history[i + len(self.sequence) - 1].timestamp
+                    if (current_time - last_event_time).total_seconds() > self.time_constraint:
+                        continue
+
                 # Return the number of history entries that matched
                 return True, len(self.sequence)
 
@@ -174,9 +172,9 @@ class Config:
                         if pattern:
                             self.patterns.append(pattern)
 
-    def get_matching_command(self, history: List[HistoryEntry]) -> Tuple[Optional[str], Optional[int]]:
+    def get_matching_command(self, history: List[HistoryEntry], pressed_buttons: Dict[str, bool]) -> Tuple[Optional[str], Optional[int]]:
         """
-        Get command for the first matching pattern in history.
+        Get command for the best matching pattern in history.
         Returns (command, entries_to_consume) where entries_to_consume is the number
         of history entries that should be consumed after executing the command.
         """
@@ -188,10 +186,17 @@ class Config:
             key=lambda p: (-p.specificity, p.line_number)
         )
         
+        best_match = None
+        best_match_length = 0
+        
         for pattern in sorted_patterns:
-            matches, match_length = pattern.matches_history(history, current_time)
-            if matches:
-                return pattern.command, match_length
+            matches, match_length = pattern.matches_history(history, current_time, pressed_buttons)
+            if matches and match_length > best_match_length:
+                best_match = pattern
+                best_match_length = match_length
+        
+        if best_match:
+            return best_match.command, best_match_length
         
         return None, None
 

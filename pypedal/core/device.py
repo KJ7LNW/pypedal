@@ -61,7 +61,7 @@ class DeviceHandler:
 
         # Check for matching patterns and execute commands
         if self.config:
-            command, entries_to_consume = self.config.get_matching_command(self.history.entries)
+            command, entries_to_consume = self.config.get_matching_command(self.history.entries, self.button_state.get_state())
             if command:
                 try:
                     click.echo(f"    Executing: {command}")

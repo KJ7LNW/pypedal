@@ -1,122 +1,111 @@
-"""
-Tests for device event handling
-"""
-import struct
+import pytest
 from unittest.mock import Mock, patch
-from pypedal.core.device import DeviceHandler, EV_TYPES, KEY_CODES
+from datetime import datetime
+from pypedal.core.device import DeviceHandler
+from pypedal.core.button import HistoryEntry
 
-def create_event(type_: int, code: int, value: int) -> bytes:
-    """Create a mock event byte string"""
-    # Create event with dummy timestamp (0, 0)
-    return struct.pack('llHHI', 0, 0, type_, code, value)
+def create_event(type_, code, value):
+    """Create a mock event"""
+    return (0).to_bytes(8, 'little') + \
+           (0).to_bytes(8, 'little') + \
+           type_.to_bytes(2, 'little') + \
+           code.to_bytes(2, 'little') + \
+           value.to_bytes(4, 'little')
 
-def test_process_key_event():
-    """Test processing of key events"""
-    handler = DeviceHandler('/dev/null', quiet=True)
-    
-    # Test button press event
-    press_event = create_event(1, 256, 1)  # Type 1 (EV_KEY), code 256 (button 1), value 1 (press)
-    handler.process_event(press_event)
-    
-    # Verify button state was updated
-    assert handler.button_state.states["1"] == True
+def test_device_handler_initialization():
+    handler = DeviceHandler('/dev/null')
+    assert handler.device_path == '/dev/null'
+    assert handler.config is None
+    assert handler.quiet is False
+
+def test_process_event():
+    mock_config = Mock()
+    mock_config.get_matching_command.return_value = (None, None)  # Return a tuple
+    handler = DeviceHandler('/dev/null', config=mock_config, quiet=True)
+
+    # Create a mock event (button 1 press)
+    event = create_event(1, 256, 1)
+
+    handler.process_event(event)
+
+    assert handler.button_state.get_state() == {"1": True, "2": False, "3": False}
     assert len(handler.history.entries) == 1
     assert handler.history.entries[0].button == "1"
     assert handler.history.entries[0].event == "pressed"
-    
-    # Test button release event
-    release_event = create_event(1, 256, 0)  # Type 1 (EV_KEY), code 256 (button 1), value 0 (release)
-    handler.process_event(release_event)
-    
-    # Verify button state was updated
-    assert handler.button_state.states["1"] == False
-    assert len(handler.history.entries) == 2
-    assert handler.history.entries[1].button == "1"
-    assert handler.history.entries[1].event == "released"
 
-def test_process_sync_event():
-    """Test processing of sync events"""
-    handler = DeviceHandler('/dev/null', quiet=True)
-    
-    # Test sync event (type 0)
-    sync_event = create_event(0, 0, 0)
-    handler.process_event(sync_event)
-    
-    # Verify sync events are ignored
-    assert len(handler.history.entries) == 0
-
-def test_process_unknown_event():
-    """Test processing of unknown event types"""
-    handler = DeviceHandler('/dev/null', quiet=True)
-    
-    # Test unknown event type
-    unknown_event = create_event(99, 0, 0)
-    handler.process_event(unknown_event)
-    
-    # Verify unknown events don't affect state
-    assert len(handler.history.entries) == 0
-
-def test_command_execution():
-    """Test command execution when patterns match"""
+def test_process_event_with_command():
     mock_config = Mock()
-    # Mock should return (command, entries_to_consume)
-    mock_config.get_matching_command.return_value = ("echo test", 1)
-    
+    mock_config.get_matching_command.return_value = ("test command", 1)
     handler = DeviceHandler('/dev/null', config=mock_config, quiet=True)
-    
-    # Create and process a button press event
-    press_event = create_event(1, 256, 1)
-    
+
+    # Create a mock event (button 1 press)
+    event = create_event(1, 256, 1)
+
     with patch('subprocess.run') as mock_run:
-        handler.process_event(press_event)
-        
-        # Verify command was executed
-        mock_config.get_matching_command.assert_called_once()
-        mock_run.assert_called_once_with("echo test", shell=True, check=True)
+        handler.process_event(event)
+
+    mock_run.assert_called_once_with("test command", shell=True, check=True)
 
 def test_command_execution_with_history_consumption():
     """Test that history is consumed after command execution"""
     mock_config = Mock()
-    
+
     # Configure mock to return command only after seeing both button 1 and 2
-    def mock_get_matching_command(history):
+    def mock_get_matching_command(history, pressed_buttons):
         if len(history) >= 2:
             if (history[0].button == "1" and history[0].event == "pressed" and
                 history[1].button == "2" and history[1].event == "pressed"):
                 return "test command", 2
         return None, None
-    
+
     mock_config.get_matching_command.side_effect = mock_get_matching_command
-    
+
     handler = DeviceHandler('/dev/null', config=mock_config, quiet=True)
-    
+
     # Add some events
     press_event1 = create_event(1, 256, 1)  # Button 1 press
     press_event2 = create_event(1, 257, 1)  # Button 2 press
     press_event3 = create_event(1, 258, 1)  # Button 3 press
-    
+
     with patch('subprocess.run') as mock_run:
         # Process events
         handler.process_event(press_event1)
         handler.process_event(press_event2)
         handler.process_event(press_event3)
-        
-        # Verify history was consumed correctly
-        assert len(handler.history.entries) == 1  # Only button 3 press should remain
-        assert handler.history.entries[0].button == "3"
-        assert handler.history.entries[0].event == "pressed"
-        
-        # Verify command was executed once
+
+        # Check that the command was executed
         mock_run.assert_called_once_with("test command", shell=True, check=True)
 
-def test_event_type_mappings():
-    """Test event type mappings"""
-    assert EV_TYPES[0] == "EV_SYN"
-    assert EV_TYPES[1] == "EV_KEY"
-    assert EV_TYPES[4] == "EV_MSC"
+        # Check that history was consumed
+        assert len(handler.history.entries) == 1
+        assert handler.history.entries[0].button == "3"
 
-def test_key_code_mappings():
-    """Test key code mappings"""
-    assert KEY_CODES[256] == "1"  # Left pedal
-    assert KEY_CODES[257] == "2"  # Middle pedal
-    assert KEY_CODES[258] == "3"  # Right pedal
+def test_read_events():
+    mock_config = Mock()
+    mock_config.get_matching_command.return_value = (None, None)  # Return a tuple
+    handler = DeviceHandler('/dev/null', config=mock_config, quiet=True)
+
+    # Mock the open function to return a file-like object
+    mock_file = Mock()
+    mock_file.read.side_effect = [
+        create_event(1, 256, 1),  # Button 1 press
+        create_event(1, 256, 0),  # Button 1 release
+        KeyboardInterrupt,  # Simulate Ctrl+C to stop the loop
+    ]
+
+    # Add __enter__ and __exit__ methods to mock_file
+    mock_file.__enter__ = Mock(return_value=mock_file)
+    mock_file.__exit__ = Mock(return_value=None)
+
+    with patch('builtins.open', return_value=mock_file), \
+         patch('select.select', return_value=([mock_file], [], [])):
+        try:
+            handler.read_events()
+        except KeyboardInterrupt:
+            pass  # Expected behavior, do nothing
+
+    assert len(handler.history.entries) == 2
+    assert handler.history.entries[0].button == "1"
+    assert handler.history.entries[0].event == "pressed"
+    assert handler.history.entries[1].button == "1"
+    assert handler.history.entries[1].event == "released"

@@ -74,3 +74,8 @@ class History:
         """Remove entries that have been matched to prevent re-triggering"""
         if len(self.entries) > 10:  # Keep last 10 entries for matching
             self.entries = self.entries[-10:]
+
+    def display_all(self) -> None:
+        """Display all history entries"""
+        for entry in self.entries:
+            click.echo(str(entry))

@@ -26,7 +26,8 @@ def main():
               help='Suppress additional output')
 @click.option('--timeout', '-t', type=float, default=1.0,
               help='Time in seconds to keep history entries for released buttons (default: 1.0)')
-def read(device, config, format, quiet, timeout):
+@click.option('--debug', is_flag=True, help='Show the in-memory structure of the configuration after loading')
+def read(device, config, format, quiet, timeout, debug):
     """Read events from a USB foot pedal and execute configured commands.
     
     DEVICE: Path to input device (default: USB footpedal)
@@ -52,7 +53,11 @@ def read(device, config, format, quiet, timeout):
     # Initialize configuration if provided
     config_handler = None
     if config:
+        click.echo(f"Using configuration file: {config}")
         config_handler = Config(config)
+        if debug:
+            click.echo("Configuration structure:")
+            config_handler.dump_structure()
 
     # Create and run device handler
     handler = DeviceHandler(device, config_handler, quiet, history_timeout=timeout)

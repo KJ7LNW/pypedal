@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple
 from datetime import datetime
 from .button import HistoryEntry
+from pprint import pprint
 
 @dataclass
 class ButtonEvent:
@@ -193,3 +194,7 @@ class Config:
                 return pattern.command, match_length
         
         return None, None
+
+    def dump_structure(self) -> None:
+        """Display the in-memory structure of the configuration"""
+        pprint(self.patterns)

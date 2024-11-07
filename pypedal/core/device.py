@@ -65,7 +65,7 @@ class DeviceHandler:
             if command:
                 try:
                     click.echo(f"    Executing: {command}")
-                    subprocess.run(command, shell=True, check=True, capture_output=True)
+                    subprocess.run(command, shell=True, check=True)
                     # Consume matched entries to prevent re-triggering
                     if entries_to_consume:
                         self.history.entries = self.history.entries[entries_to_consume:]

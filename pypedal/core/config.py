@@ -157,6 +157,12 @@ class Config:
         if config_file and os.path.exists(config_file):
             self.load(config_file)
 
+    def load_line(self, pattern: str, command: str, line_number: int = 0) -> None:
+        """Load a single configuration line"""
+        pattern = CommandPattern.parse(pattern, command, line_number)
+        if pattern:
+            self.patterns.append(pattern)
+
     def load(self, config_file: str) -> None:
         """Load configuration from file"""
         with open(config_file, 'r') as f:
@@ -168,9 +174,7 @@ class Config:
                     if len(parts) == 2:
                         pattern_str = parts[0].strip()
                         command = parts[1].split('#')[0].strip()
-                        pattern = CommandPattern.parse(pattern_str, command, line_number)
-                        if pattern:
-                            self.patterns.append(pattern)
+                        self.load_line(pattern_str, command, line_number)
 
     def get_matching_command(self, history: List[HistoryEntry], pressed_buttons: Dict[str, bool]) -> Tuple[Optional[str], Optional[int]]:
         """

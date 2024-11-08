@@ -1,5 +1,5 @@
 """
-Tests for core module initialization
+Test core module exports
 """
 from pypedal import core
 
@@ -8,7 +8,8 @@ def test_core_exports():
     assert hasattr(core, 'ButtonState')
     assert hasattr(core, 'HistoryEntry')
     assert hasattr(core, 'History')
-    assert hasattr(core, 'CommandPattern')
+    assert hasattr(core, 'ButtonEventPattern')
+    assert hasattr(core, 'ButtonEventPatternElement')
     assert hasattr(core, 'Config')
     assert hasattr(core, 'DeviceHandler')
 
@@ -18,7 +19,8 @@ def test_import_all():
         'ButtonState',
         'HistoryEntry',
         'History',
-        'CommandPattern',
+        'ButtonEventPattern',
+        'ButtonEventPatternElement',
         'Config',
         'DeviceHandler'
     }

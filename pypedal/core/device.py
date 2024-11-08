@@ -18,9 +18,9 @@ EV_TYPES = {
 
 # Key code mappings for the footpedal - using numeric identifiers
 KEY_CODES = {
-    256: "1",  # Left pedal
-    257: "2",  # Middle pedal
-    258: "3"   # Right pedal
+    256: 1,  # Left pedal
+    257: 2,  # Middle pedal
+    258: 3   # Right pedal
 }
 
 class DeviceHandler:
@@ -46,7 +46,11 @@ class DeviceHandler:
         if type_ != 1:  # Not a key event
             return
 
-        button = KEY_CODES.get(code, f"Unknown({code})")
+        button = KEY_CODES.get(code)
+        if button is None:
+            click.echo(f"Unknown button code: {code}", err=True)
+            return
+
         event = ButtonEvent.BUTTON_DOWN if value == 1 else ButtonEvent.BUTTON_UP
 
         # Update button state
@@ -54,14 +58,16 @@ class DeviceHandler:
 
         # Add to history and display event immediately
         entry = self.history.add_entry(button, event, self.button_state.get_state())
-        click.echo(str(entry))
+        if not self.quiet:
+            click.echo(str(entry))
 
         # Check for matching patterns and execute commands
         if self.config:
             command, entries_to_consume = self.config.get_matching_command(self.history.entries, self.button_state.get_state())
             if command:
                 try:
-                    click.echo(f"    Executing: {command}")
+                    if not self.quiet:
+                        click.echo(f"    Executing: {command}")
                     subprocess.run(command, shell=True, check=True)
                     # Consume matched entries to prevent re-triggering
                     if entries_to_consume:

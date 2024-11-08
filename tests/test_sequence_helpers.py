@@ -23,9 +23,8 @@ def run_button_sequence(config_lines, button_events, expected_commands):
     """
     # Create config from text lines
     config = Config()
-    for line_num, line in enumerate(config_lines, 1):
-        pattern, command = line.split(':', 1)
-        config.load_line(pattern.strip(), command.strip(), line_num)
+    for i, line in enumerate(config_lines, 1):
+        config.load_line(line, i)
     
     # Track executed commands
     executed_commands = []

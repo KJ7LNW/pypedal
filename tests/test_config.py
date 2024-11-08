@@ -1,16 +1,15 @@
 import pytest
 from datetime import datetime, timedelta
-from pypedal.core.config import Config, CommandPattern
+from pypedal.core.config import Config, ButtonEventPatternElement
 from pypedal.core.button import HistoryEntry, ButtonEvent
+from pprint import pprint
 
 @pytest.fixture
 def sample_config():
     config = Config()
-    config.patterns = [
-        CommandPattern.parse("1v,2v,2^", "command1", 1),
-        CommandPattern.parse("1v,3v,3^", "command2", 2),
-        CommandPattern.parse("2v", "command3", 3),
-    ]
+    config.load_line("1v,2v,2^: command1", 1)
+    config.load_line("1v,3v,3^: command2", 2)
+    config.load_line("2v: command3", 3)
     return config
 
 def test_config_load(tmp_path):
@@ -22,19 +21,62 @@ def test_config_load(tmp_path):
     )
     
     config = Config(str(config_file))
-    assert len(config.patterns) == 3
+    print("\nConfig patterns:")
+    pprint(config)
+    
+    # Verify first pattern (1v,2v,2^)
+    assert len(config.patterns) == 3  # One pattern per line
+    
+    # Check first pattern sequence
+    assert len(config.patterns[0].sequence) == 3
+    assert config.patterns[0].sequence[0] == ButtonEventPatternElement(1, ButtonEvent.BUTTON_DOWN)
+    assert config.patterns[0].sequence[1] == ButtonEventPatternElement(2, ButtonEvent.BUTTON_DOWN)
+    assert config.patterns[0].sequence[2] == ButtonEventPatternElement(2, ButtonEvent.BUTTON_UP)
     assert config.patterns[0].command == "command1"
+    assert config.patterns[0].time_constraint == float('inf')
+    
+    # Check second pattern sequence
+    assert len(config.patterns[1].sequence) == 3
+    assert config.patterns[1].sequence[0] == ButtonEventPatternElement(1, ButtonEvent.BUTTON_DOWN)
+    assert config.patterns[1].sequence[1] == ButtonEventPatternElement(3, ButtonEvent.BUTTON_DOWN)
+    assert config.patterns[1].sequence[2] == ButtonEventPatternElement(3, ButtonEvent.BUTTON_UP)
     assert config.patterns[1].command == "command2"
+    assert config.patterns[1].time_constraint == float('inf')
+    
+    # Check third pattern sequence
+    assert len(config.patterns[2].sequence) == 1
+    assert config.patterns[2].sequence[0] == ButtonEventPatternElement(2, ButtonEvent.BUTTON_DOWN)
     assert config.patterns[2].command == "command3"
+    assert config.patterns[2].time_constraint == float('inf')
+
+def test_config_load_with_timing(tmp_path):
+    config_file = tmp_path / "test_config.conf"
+    config_file.write_text(
+        "1v,2v < 0.5: command1\n"  # Pattern with timing constraint
+    )
+    
+    config = Config(str(config_file))
+    print("\nConfig patterns with timing:")
+    pprint(config)
+    
+    assert len(config.patterns) == 1  # One pattern
+    
+    # Verify timing constraint is set
+    assert config.patterns[0].time_constraint == 0.5
+    
+    # Verify button sequence
+    assert len(config.patterns[0].sequence) == 2
+    assert config.patterns[0].sequence[0] == ButtonEventPatternElement(1, ButtonEvent.BUTTON_DOWN)
+    assert config.patterns[0].sequence[1] == ButtonEventPatternElement(2, ButtonEvent.BUTTON_DOWN)
 
 def test_config_get_matching_command(sample_config):
     now = datetime.now()
     history = [
-        HistoryEntry(now, "1", ButtonEvent.BUTTON_DOWN, {"1": ButtonEvent.BUTTON_DOWN, "2": ButtonEvent.BUTTON_UP, "3": ButtonEvent.BUTTON_UP}),
-        HistoryEntry(now + timedelta(seconds=0.1), "2", ButtonEvent.BUTTON_DOWN, {"1": ButtonEvent.BUTTON_DOWN, "2": ButtonEvent.BUTTON_DOWN, "3": ButtonEvent.BUTTON_UP}),
-        HistoryEntry(now + timedelta(seconds=0.2), "2", ButtonEvent.BUTTON_UP, {"1": ButtonEvent.BUTTON_DOWN, "2": ButtonEvent.BUTTON_UP, "3": ButtonEvent.BUTTON_UP}),
+        HistoryEntry(now, 1, ButtonEvent.BUTTON_DOWN, {1: ButtonEvent.BUTTON_DOWN, 2: ButtonEvent.BUTTON_UP, 3: ButtonEvent.BUTTON_UP}),
+        HistoryEntry(now + timedelta(seconds=0.1), 2, ButtonEvent.BUTTON_DOWN, {1: ButtonEvent.BUTTON_DOWN, 2: ButtonEvent.BUTTON_DOWN, 3: ButtonEvent.BUTTON_UP}),
+        HistoryEntry(now + timedelta(seconds=0.2), 2, ButtonEvent.BUTTON_UP, {1: ButtonEvent.BUTTON_DOWN, 2: ButtonEvent.BUTTON_UP, 3: ButtonEvent.BUTTON_UP}),
     ]
-    pressed_buttons = {"1": ButtonEvent.BUTTON_DOWN, "2": ButtonEvent.BUTTON_UP, "3": ButtonEvent.BUTTON_UP}
+    pressed_buttons = {1: ButtonEvent.BUTTON_DOWN, 2: ButtonEvent.BUTTON_UP, 3: ButtonEvent.BUTTON_UP}
 
     command, length = sample_config.get_matching_command(history, pressed_buttons)
     assert command == "command1"
@@ -43,9 +85,9 @@ def test_config_get_matching_command(sample_config):
 def test_config_no_match(sample_config):
     now = datetime.now()
     history = [
-        HistoryEntry(now, "3", ButtonEvent.BUTTON_DOWN, {"1": ButtonEvent.BUTTON_UP, "2": ButtonEvent.BUTTON_UP, "3": ButtonEvent.BUTTON_DOWN}),
+        HistoryEntry(now, 3, ButtonEvent.BUTTON_DOWN, {1: ButtonEvent.BUTTON_UP, 2: ButtonEvent.BUTTON_UP, 3: ButtonEvent.BUTTON_DOWN}),
     ]
-    pressed_buttons = {"1": ButtonEvent.BUTTON_UP, "2": ButtonEvent.BUTTON_UP, "3": ButtonEvent.BUTTON_DOWN}
+    pressed_buttons = {1: ButtonEvent.BUTTON_UP, 2: ButtonEvent.BUTTON_UP, 3: ButtonEvent.BUTTON_DOWN}
 
     command, length = sample_config.get_matching_command(history, pressed_buttons)
     assert command is None

@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import Mock, patch
 from datetime import datetime
 from pypedal.core.device import DeviceHandler
-from pypedal.core.button import HistoryEntry
+from pypedal.core.button import HistoryEntry, ButtonEvent
 
 def create_event(type_, code, value):
     """Create a mock event"""
@@ -28,10 +28,10 @@ def test_process_event():
 
     handler.process_event(event)
 
-    assert handler.button_state.get_state() == {"1": True, "2": False, "3": False}
+    assert handler.button_state.get_state() == {"1": ButtonEvent.BUTTON_DOWN, "2": ButtonEvent.BUTTON_UP, "3": ButtonEvent.BUTTON_UP}
     assert len(handler.history.entries) == 1
     assert handler.history.entries[0].button == "1"
-    assert handler.history.entries[0].event == "pressed"
+    assert handler.history.entries[0].event == ButtonEvent.BUTTON_DOWN
 
 def test_process_event_with_command():
     mock_config = Mock()
@@ -53,8 +53,8 @@ def test_command_execution_with_history_consumption():
     # Configure mock to return command only after seeing both button 1 and 2
     def mock_get_matching_command(history, pressed_buttons):
         if len(history) >= 2:
-            if (history[0].button == "1" and history[0].event == "pressed" and
-                history[1].button == "2" and history[1].event == "pressed"):
+            if (history[0].button == "1" and history[0].event == ButtonEvent.BUTTON_DOWN and
+                history[1].button == "2" and history[1].event == ButtonEvent.BUTTON_DOWN):
                 return "test command", 2
         return None, None
 
@@ -106,6 +106,6 @@ def test_read_events():
 
     assert len(handler.history.entries) == 2
     assert handler.history.entries[0].button == "1"
-    assert handler.history.entries[0].event == "pressed"
+    assert handler.history.entries[0].event == ButtonEvent.BUTTON_DOWN
     assert handler.history.entries[1].button == "1"
-    assert handler.history.entries[1].event == "released"
+    assert handler.history.entries[1].event == ButtonEvent.BUTTON_UP

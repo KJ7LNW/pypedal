@@ -6,7 +6,7 @@ import select
 import subprocess
 import click
 from typing import Tuple, BinaryIO, Optional
-from .button import ButtonState, History
+from .button import ButtonState, History, ButtonEvent
 from .config import Config
 
 # Event type mappings
@@ -47,13 +47,13 @@ class DeviceHandler:
             return
 
         button = KEY_CODES.get(code, f"Unknown({code})")
-        state = "pressed" if value == 1 else "released"
+        event = ButtonEvent.BUTTON_DOWN if value == 1 else ButtonEvent.BUTTON_UP
 
         # Update button state
-        self.button_state.update(button, value == 1)
+        self.button_state.update(button, event)
 
         # Add to history and display event immediately
-        entry = self.history.add_entry(button, state, self.button_state.get_state())
+        entry = self.history.add_entry(button, event, self.button_state.get_state())
         click.echo(str(entry))
 
         # Clean up old entries for released buttons

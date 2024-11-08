@@ -6,28 +6,27 @@ import re
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Dict
 from datetime import datetime
-from .button import HistoryEntry
+from .button import HistoryEntry, ButtonEvent
 from pprint import pprint
 
 @dataclass
-class ButtonEvent:
+class ButtonEventPattern:
     """Represents a single button event in a sequence"""
     button: str
-    event: str  # "v" for press, "^" for release
+    event: ButtonEvent
 
     def __str__(self) -> str:
-        return f"{self.button}{self.event}"
+        return f"{self.button}{'v' if self.event == ButtonEvent.BUTTON_DOWN else '^'}"
 
     def matches(self, history_entry: HistoryEntry) -> bool:
         """Check if this button event matches a history entry"""
-        event_type = "pressed" if self.event == "v" else "released"
         return (history_entry.button == self.button and 
-                history_entry.event == event_type)
+                history_entry.event == self.event)
 
 @dataclass
 class CommandPattern:
     """Represents a parsed command pattern"""
-    sequence: List[ButtonEvent]
+    sequence: List[ButtonEventPattern]
     time_constraint: Optional[float] = None
     command: str = ""
     line_number: int = 0  # Track original line number for priority
@@ -50,8 +49,8 @@ class CommandPattern:
             button, time = time_match.groups()
             return cls(
                 sequence=[
-                    ButtonEvent(button, "v"),
-                    ButtonEvent(button, "^")
+                    ButtonEventPattern(button, ButtonEvent.BUTTON_DOWN),
+                    ButtonEventPattern(button, ButtonEvent.BUTTON_UP)
                 ],
                 time_constraint=float(time),
                 command=command,
@@ -62,8 +61,8 @@ class CommandPattern:
         if pattern.isdigit():
             return cls(
                 sequence=[
-                    ButtonEvent(pattern, "v"),
-                    ButtonEvent(pattern, "^")
+                    ButtonEventPattern(pattern, ButtonEvent.BUTTON_DOWN),
+                    ButtonEventPattern(pattern, ButtonEvent.BUTTON_UP)
                 ],
                 command=command,
                 line_number=line_number
@@ -73,8 +72,9 @@ class CommandPattern:
         single_match = re.match(r'^(\d+)(v|\^)$', pattern)
         if single_match:
             button, event = single_match.groups()
+            event_type = ButtonEvent.BUTTON_DOWN if event == 'v' else ButtonEvent.BUTTON_UP
             return cls(
-                sequence=[ButtonEvent(button, event)],
+                sequence=[ButtonEventPattern(button, event_type)],
                 command=command,
                 line_number=line_number
             )
@@ -91,12 +91,13 @@ class CommandPattern:
                 if part.endswith('v') or part.endswith('^'):
                     button = part[:-1]
                     event = part[-1]
-                    sequence.append(ButtonEvent(button, event))
+                    event_type = ButtonEvent.BUTTON_DOWN if event == 'v' else ButtonEvent.BUTTON_UP
+                    sequence.append(ButtonEventPattern(button, event_type))
                 else:
                     # implicit press/release
                     button = part
-                    sequence.append(ButtonEvent(button, "v"))
-                    sequence.append(ButtonEvent(button, "^"))
+                    sequence.append(ButtonEventPattern(button, ButtonEvent.BUTTON_DOWN))
+                    sequence.append(ButtonEventPattern(button, ButtonEvent.BUTTON_UP))
 
             return cls(
                 sequence=sequence,
@@ -107,7 +108,7 @@ class CommandPattern:
             
         return None
 
-    def matches_history(self, history: List[HistoryEntry], current_time: datetime, pressed_buttons: Dict[str, bool]) -> Tuple[bool, Optional[int]]:
+    def matches_history(self, history: List[HistoryEntry], current_time: datetime, pressed_buttons: Dict[str, ButtonEvent]) -> Tuple[bool, Optional[int]]:
         """
         Check if this pattern matches the recent history and current pressed button state.
         Returns (matches, match_length) where match_length is the number of history entries to consume.
@@ -117,7 +118,7 @@ class CommandPattern:
 
         # Skip this pattern if any currently pressed buttons are not used in this pattern
         pattern_buttons = set(event.button for event in self.sequence)
-        if any(button for button, is_pressed in pressed_buttons.items() if is_pressed and button not in pattern_buttons):
+        if any(button for button, state in pressed_buttons.items() if state == ButtonEvent.BUTTON_DOWN and button not in pattern_buttons):
             return False, None
 
         # Try to find a match starting at each possible position
@@ -176,7 +177,7 @@ class Config:
                         command = parts[1].split('#')[0].strip()
                         self.load_line(pattern_str, command, line_number)
 
-    def get_matching_command(self, history: List[HistoryEntry], pressed_buttons: Dict[str, bool]) -> Tuple[Optional[str], Optional[int]]:
+    def get_matching_command(self, history: List[HistoryEntry], pressed_buttons: Dict[str, ButtonEvent]) -> Tuple[Optional[str], Optional[int]]:
         """
         Get command for the best matching pattern in history.
         Returns (command, entries_to_consume) where entries_to_consume is the number

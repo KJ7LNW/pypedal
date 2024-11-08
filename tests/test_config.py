@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime, timedelta
 from pypedal.core.config import Config, CommandPattern
-from pypedal.core.button import HistoryEntry
+from pypedal.core.button import HistoryEntry, ButtonEvent
 
 @pytest.fixture
 def sample_config():
@@ -30,11 +30,11 @@ def test_config_load(tmp_path):
 def test_config_get_matching_command(sample_config):
     now = datetime.now()
     history = [
-        HistoryEntry(now, "1", "pressed", {"1": True, "2": False, "3": False}),
-        HistoryEntry(now + timedelta(seconds=0.1), "2", "pressed", {"1": True, "2": True, "3": False}),
-        HistoryEntry(now + timedelta(seconds=0.2), "2", "released", {"1": True, "2": False, "3": False}),
+        HistoryEntry(now, "1", ButtonEvent.BUTTON_DOWN, {"1": ButtonEvent.BUTTON_DOWN, "2": ButtonEvent.BUTTON_UP, "3": ButtonEvent.BUTTON_UP}),
+        HistoryEntry(now + timedelta(seconds=0.1), "2", ButtonEvent.BUTTON_DOWN, {"1": ButtonEvent.BUTTON_DOWN, "2": ButtonEvent.BUTTON_DOWN, "3": ButtonEvent.BUTTON_UP}),
+        HistoryEntry(now + timedelta(seconds=0.2), "2", ButtonEvent.BUTTON_UP, {"1": ButtonEvent.BUTTON_DOWN, "2": ButtonEvent.BUTTON_UP, "3": ButtonEvent.BUTTON_UP}),
     ]
-    pressed_buttons = {"1": True, "2": False, "3": False}
+    pressed_buttons = {"1": ButtonEvent.BUTTON_DOWN, "2": ButtonEvent.BUTTON_UP, "3": ButtonEvent.BUTTON_UP}
 
     command, length = sample_config.get_matching_command(history, pressed_buttons)
     assert command == "command1"
@@ -43,9 +43,9 @@ def test_config_get_matching_command(sample_config):
 def test_config_no_match(sample_config):
     now = datetime.now()
     history = [
-        HistoryEntry(now, "3", "pressed", {"1": False, "2": False, "3": True}),
+        HistoryEntry(now, "3", ButtonEvent.BUTTON_DOWN, {"1": ButtonEvent.BUTTON_UP, "2": ButtonEvent.BUTTON_UP, "3": ButtonEvent.BUTTON_DOWN}),
     ]
-    pressed_buttons = {"1": False, "2": False, "3": True}
+    pressed_buttons = {"1": ButtonEvent.BUTTON_UP, "2": ButtonEvent.BUTTON_UP, "3": ButtonEvent.BUTTON_DOWN}
 
     command, length = sample_config.get_matching_command(history, pressed_buttons)
     assert command is None

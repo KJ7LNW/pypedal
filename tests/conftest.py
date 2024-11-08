@@ -5,13 +5,13 @@ import os
 import tempfile
 import pytest
 from datetime import datetime
-from pypedal.core.button import ButtonState, HistoryEntry, History
+from pypedal.core.pedal import PedalState, HistoryEntry, History
 from pypedal.core.config import Config
 
 @pytest.fixture
 def button_state():
-    """Fixture providing a fresh ButtonState instance"""
-    return ButtonState()
+    """Fixture providing a fresh PedalState instance"""
+    return PedalState()
 
 @pytest.fixture
 def history():

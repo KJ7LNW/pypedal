@@ -1,12 +1,12 @@
 """
-Configuration and command pattern handling
+Configuration and command pattern handling for pedal device
 """
 import os
 import re
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Dict
 from datetime import datetime
-from .button import HistoryEntry, ButtonEvent
+from .pedal import HistoryEntry, ButtonEvent
 from pprint import pprint
 
 @dataclass
@@ -28,7 +28,7 @@ class ButtonEventPatternElement:
 
 @dataclass
 class ButtonEventPattern:
-    """Represents a sequence of button events with timing and command info"""
+    """Represents a sequence of pedal button events with timing and command info"""
     sequence: List[ButtonEventPatternElement]
     time_constraint: float = float('inf')
     command: str = ""
@@ -86,7 +86,7 @@ class ButtonEventPattern:
         return False, None
 
 class Config:
-    """Handles configuration file parsing and storage"""
+    """Handles configuration file parsing and storage for the pedal device"""
     def __init__(self, config_file: str = None):
         self.patterns: List[ButtonEventPattern] = []
         if config_file and os.path.exists(config_file):
@@ -124,7 +124,7 @@ class Config:
             if not part:
                 continue
 
-            # Handle explicit v/^ notation
+            # Handle explicit v/^ notation for button press/release
             if part.endswith('v') or part.endswith('^'):
                 button = int(part[:-1])
                 event = part[-1]

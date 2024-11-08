@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime, timedelta
 from pypedal.core.config import Config, ButtonEventPattern, ButtonEventPatternElement
-from pypedal.core.button import HistoryEntry, ButtonEvent
+from pypedal.core.pedal import HistoryEntry, ButtonEvent
 
 def test_pattern_parse():
     config = Config()

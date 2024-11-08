@@ -1,12 +1,12 @@
 """
 Core functionality for pypedal
 """
-from .button import ButtonState, HistoryEntry, History
+from .pedal import PedalState, HistoryEntry, History
 from .config import ButtonEventPattern, ButtonEventPatternElement, Config
 from .device import DeviceHandler
 
 __all__ = [
-    'ButtonState',
+    'PedalState',
     'HistoryEntry',
     'History',
     'ButtonEventPattern',

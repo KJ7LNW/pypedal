@@ -1,12 +1,12 @@
 """
-Device event handling functionality
+Pedal device event handling functionality
 """
 import struct
 import select
 import subprocess
 import click
 from typing import Tuple, BinaryIO, Optional
-from .button import ButtonState, History, ButtonEvent
+from .pedal import PedalState, History, ButtonEvent
 from .config import Config
 
 # Event type mappings
@@ -16,15 +16,15 @@ EV_TYPES = {
     4: "EV_MSC"   # Miscellaneous event
 }
 
-# Key code mappings for the footpedal - using numeric identifiers
+# Key code mappings for the pedal device buttons
 KEY_CODES = {
-    256: 1,  # Left pedal
-    257: 2,  # Middle pedal
-    258: 3   # Right pedal
+    256: 1,  # Left pedal button
+    257: 2,  # Middle pedal button
+    258: 3   # Right pedal button
 }
 
 class DeviceHandler:
-    """Handles reading and processing device events"""
+    """Handles reading and processing pedal device events"""
     EVENT_SIZE = 24  # struct input_event size
     EVENT_FORMAT = 'llHHI'  # struct input_event format
 
@@ -32,11 +32,11 @@ class DeviceHandler:
         self.device_path = device_path
         self.config = config
         self.quiet = quiet
-        self.button_state = ButtonState()
+        self.button_state = PedalState()
         self.history = History()
 
     def process_event(self, event_data: bytes) -> None:
-        """Process a single event from the device"""
+        """Process a single event from the pedal device"""
         if not event_data:
             return
 
@@ -76,7 +76,7 @@ class DeviceHandler:
                     click.echo(f"    Error executing command: {e}", err=True)
 
     def read_events(self) -> None:
-        """Read and process events from the device"""
+        """Read and process events from the pedal device"""
         try:
             with open(self.device_path, 'rb', buffering=0) as dev:
                 while True:

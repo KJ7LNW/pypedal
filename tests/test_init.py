@@ -5,7 +5,7 @@ from pypedal import core
 
 def test_core_exports():
     """Test that core module exports expected classes"""
-    assert hasattr(core, 'ButtonState')
+    assert hasattr(core, 'PedalState')
     assert hasattr(core, 'HistoryEntry')
     assert hasattr(core, 'History')
     assert hasattr(core, 'ButtonEventPattern')
@@ -16,7 +16,7 @@ def test_core_exports():
 def test_import_all():
     """Test that __all__ contains expected exports"""
     expected = {
-        'ButtonState',
+        'PedalState',
         'HistoryEntry',
         'History',
         'ButtonEventPattern',

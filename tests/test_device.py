@@ -29,7 +29,7 @@ def test_process_event():
 
     handler.process_event(event)
 
-    assert handler.button_state.get_state() == {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_UP, Button(3): ButtonEvent.BUTTON_UP}
+    assert handler.pedal_state.get_state() == {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_UP, Button(3): ButtonEvent.BUTTON_UP}
     assert len(handler.history.entries) == 1
     assert handler.history.entries[0].button == Button(1)
     assert handler.history.entries[0].event == ButtonEvent.BUTTON_DOWN

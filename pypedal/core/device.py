@@ -33,7 +33,7 @@ class DeviceHandler:
         self.device_path = device_path
         self.config = config
         self.quiet = quiet
-        self.button_state = PedalState()
+        self.pedal_state = PedalState()
         self.history = History()
 
     def process_event(self, event_data: bytes) -> None:
@@ -55,16 +55,16 @@ class DeviceHandler:
         event = ButtonEvent.BUTTON_DOWN if value == 1 else ButtonEvent.BUTTON_UP
 
         # Update button state
-        self.button_state.update(button, event)
+        self.pedal_state.update(button, event)
 
         # Add to history and display event immediately
-        entry = self.history.add_entry(button, event, self.button_state.get_state())
+        entry = self.history.add_entry(button, event, self.pedal_state.get_state())
         if not self.quiet:
             click.echo(str(entry))
 
         # Check for matching patterns and execute commands
         if self.config:
-            command, entries_to_consume = self.config.get_matching_command(self.history.entries, self.button_state.get_state())
+            command, entries_to_consume = self.config.get_matching_command(self.history.entries, self.pedal_state.get_state())
             if command:
                 try:
                     if not self.quiet:

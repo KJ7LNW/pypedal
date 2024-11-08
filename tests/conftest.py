@@ -5,7 +5,8 @@ import os
 import tempfile
 import pytest
 from datetime import datetime
-from pypedal.core.pedal import PedalState, HistoryEntry, History, ButtonEvent
+from pypedal.core.pedal import PedalState, ButtonEvent
+from pypedal.core.history import HistoryEntry, History
 from pypedal.core.config import Config
 from pypedal.core.device import Button
 

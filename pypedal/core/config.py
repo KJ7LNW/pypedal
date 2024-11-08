@@ -6,7 +6,8 @@ import re
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Dict
 from datetime import datetime
-from .pedal import HistoryEntry, ButtonEvent, Button
+from .pedal import ButtonEvent, Button
+from .history import HistoryEntry
 from pprint import pprint
 
 @dataclass

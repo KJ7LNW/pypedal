@@ -2,7 +2,8 @@
 Test button state and history tracking
 """
 from datetime import datetime
-from pypedal.core.pedal import PedalState, ButtonEvent, HistoryEntry, History
+from pypedal.core.pedal import PedalState, ButtonEvent
+from pypedal.core.history import HistoryEntry, History
 from pypedal.core.device import Button
 
 def test_button_state():

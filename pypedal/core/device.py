@@ -6,7 +6,8 @@ import select
 import subprocess
 import click
 from typing import Tuple, BinaryIO, Optional
-from .pedal import PedalState, History, ButtonEvent, Button
+from .pedal import PedalState, ButtonEvent, Button
+from .history import History
 from .config import Config
 
 # Event type mappings

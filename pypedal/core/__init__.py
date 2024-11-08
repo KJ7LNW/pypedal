@@ -1,7 +1,8 @@
 """
 Core functionality for pypedal
 """
-from .pedal import PedalState, HistoryEntry, History, Button, ButtonEvent
+from .pedal import PedalState, Button, ButtonEvent
+from .history import HistoryEntry, History
 from .config import ButtonEventPattern, ButtonEventPatternElement, Config
 from .device import DeviceHandler
 

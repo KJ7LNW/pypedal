@@ -1,7 +1,8 @@
 import pytest
 from datetime import datetime
 from pypedal.core.config import ButtonEventPatternElement
-from pypedal.core.pedal import HistoryEntry, ButtonEvent
+from pypedal.core.history import HistoryEntry
+from pypedal.core.pedal import ButtonEvent
 
 def test_button_event_str():
     event = ButtonEventPatternElement(1, ButtonEvent.BUTTON_DOWN)

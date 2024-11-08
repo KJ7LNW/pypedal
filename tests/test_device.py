@@ -2,7 +2,8 @@ import pytest
 from unittest.mock import Mock, patch
 from datetime import datetime
 from pypedal.core.device import DeviceHandler, Button
-from pypedal.core.pedal import HistoryEntry, ButtonEvent
+from pypedal.core.history import HistoryEntry
+from pypedal.core.pedal import ButtonEvent
 
 def create_event(type_, code, value):
     """Create a mock event"""

@@ -44,5 +44,7 @@ class History:
 
     def display_all(self) -> None:
         """Display all history entries"""
+        click.echo("\nHistory:")
         for entry in self.entries:
-            click.echo(str(entry))
+            click.echo("  " + str(entry))
+        click.echo("")

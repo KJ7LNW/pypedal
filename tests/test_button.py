@@ -78,21 +78,6 @@ def test_history_sequence():
         assert entry.event == ButtonEvent.BUTTON_DOWN
         assert entry.timestamp == base_time + timedelta(seconds=0.1 * i)
 
-def test_history_timing():
-    """Test history with timing constraints"""
-    history = History()
-    button_states = {"1": ButtonEvent.BUTTON_UP, "2": ButtonEvent.BUTTON_UP, "3": ButtonEvent.BUTTON_UP}
-    base_time = datetime.now()
-    
-    # Add entries with specific timing
-    history.add_entry("1", ButtonEvent.BUTTON_DOWN, button_states.copy(), timestamp=base_time)
-    history.add_entry("2", ButtonEvent.BUTTON_DOWN, button_states.copy(), timestamp=base_time + timedelta(seconds=0.1))
-    history.add_entry("3", ButtonEvent.BUTTON_DOWN, button_states.copy(), timestamp=base_time + timedelta(seconds=0.2))
-    
-    # Verify timing is preserved
-    assert (history.entries[1].timestamp - history.entries[0].timestamp).total_seconds() == 0.1
-    assert (history.entries[2].timestamp - history.entries[1].timestamp).total_seconds() == 0.1
-
 def test_history_consumption():
     """Test history entry consumption"""
     history = History()
@@ -155,45 +140,3 @@ def test_history_display():
     # Call display_all() to verify it doesn't raise any errors
     # Note: We can't easily test the actual output since it uses click.echo
     history.display_all()
-
-def test_history_timeout():
-    """Test history entry timeout for released buttons"""
-    history = History(timeout=0.5)  # 500ms timeout
-    button_states = {"1": ButtonEvent.BUTTON_UP, "2": ButtonEvent.BUTTON_UP, "3": ButtonEvent.BUTTON_UP}
-    base_time = datetime.now()
-    
-    # Add some entries with different timestamps
-    history.add_entry("1", ButtonEvent.BUTTON_DOWN, {"1": ButtonEvent.BUTTON_DOWN, "2": ButtonEvent.BUTTON_UP, "3": ButtonEvent.BUTTON_UP}, base_time - timedelta(seconds=1))
-    history.add_entry("1", ButtonEvent.BUTTON_UP, {"1": ButtonEvent.BUTTON_UP, "2": ButtonEvent.BUTTON_UP, "3": ButtonEvent.BUTTON_UP}, base_time - timedelta(seconds=0.8))
-    history.add_entry("2", ButtonEvent.BUTTON_DOWN, {"1": ButtonEvent.BUTTON_UP, "2": ButtonEvent.BUTTON_DOWN, "3": ButtonEvent.BUTTON_UP}, base_time - timedelta(seconds=0.3))
-    history.add_entry("2", ButtonEvent.BUTTON_UP, {"1": ButtonEvent.BUTTON_UP, "2": ButtonEvent.BUTTON_UP, "3": ButtonEvent.BUTTON_UP}, base_time - timedelta(seconds=0.2))
-    
-    # Clean up old entries
-    history.cleanup_old_entries(button_states)
-    
-    # Only entries within timeout should remain
-    assert len(history.entries) == 2
-    assert history.entries[0].button == "2"
-    assert history.entries[0].event == ButtonEvent.BUTTON_DOWN
-    assert history.entries[1].button == "2"
-    assert history.entries[1].event == ButtonEvent.BUTTON_UP
-
-def test_history_timeout_pressed_buttons():
-    """Test that history entries for pressed buttons are not timed out"""
-    history = History(timeout=0.5)  # 500ms timeout
-    button_states = {"1": ButtonEvent.BUTTON_DOWN, "2": ButtonEvent.BUTTON_UP, "3": ButtonEvent.BUTTON_UP}  # Button 1 is pressed
-    base_time = datetime.now()
-    
-    # Add old entries for button 1 (which is still pressed)
-    history.add_entry("1", ButtonEvent.BUTTON_DOWN, {"1": ButtonEvent.BUTTON_DOWN, "2": ButtonEvent.BUTTON_UP, "3": ButtonEvent.BUTTON_UP}, base_time - timedelta(seconds=1))
-    history.add_entry("2", ButtonEvent.BUTTON_DOWN, {"1": ButtonEvent.BUTTON_DOWN, "2": ButtonEvent.BUTTON_DOWN, "3": ButtonEvent.BUTTON_UP}, base_time - timedelta(seconds=0.8))
-    history.add_entry("2", ButtonEvent.BUTTON_UP, {"1": ButtonEvent.BUTTON_DOWN, "2": ButtonEvent.BUTTON_UP, "3": ButtonEvent.BUTTON_UP}, base_time - timedelta(seconds=0.7))
-    
-    # Clean up old entries
-    history.cleanup_old_entries(button_states)
-    
-    # Button 1 entries should remain because it's still pressed
-    # Button 2 entries should be removed because they're old and button is released
-    assert len(history.entries) == 1
-    assert history.entries[0].button == "1"
-    assert history.entries[0].event == ButtonEvent.BUTTON_DOWN

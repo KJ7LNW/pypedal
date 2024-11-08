@@ -3,7 +3,7 @@ Button state and history tracking functionality
 """
 from dataclasses import dataclass
 from typing import Dict, List
-from datetime import datetime, timedelta
+from datetime import datetime
 import click
 from enum import Enum
 
@@ -48,9 +48,8 @@ class HistoryEntry:
 
 class History:
     """Maintains history of button events"""
-    def __init__(self, timeout: float = 1.0):
+    def __init__(self):
         self.entries: List[HistoryEntry] = []
-        self.timeout = timeout  # Timeout in seconds
 
     def add_entry(self, button: str, event: ButtonEvent, button_states: Dict[str, ButtonEvent], timestamp: datetime = None) -> HistoryEntry:
         """Add a new entry to history"""
@@ -62,20 +61,6 @@ class History:
         )
         self.entries.append(entry)
         return entry
-
-    def cleanup_old_entries(self, current_button_states: Dict[str, ButtonEvent]) -> None:
-        """Remove old entries for released buttons"""
-        current_time = datetime.now()
-        timeout_delta = timedelta(seconds=self.timeout)
-
-        # Keep entries that are either:
-        # 1. For buttons that are currently pressed
-        # 2. For buttons that were released less than timeout seconds ago
-        self.entries = [
-            entry for entry in self.entries
-            if current_button_states[entry.button] == ButtonEvent.BUTTON_DOWN or  # Button is currently pressed
-               (current_time - entry.timestamp) <= timeout_delta  # Entry is within timeout
-        ]
 
     def consume_latest_matches(self) -> None:
         """Remove entries that have been matched to prevent re-triggering"""

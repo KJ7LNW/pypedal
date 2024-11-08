@@ -28,12 +28,12 @@ class DeviceHandler:
     EVENT_SIZE = 24  # struct input_event size
     EVENT_FORMAT = 'llHHI'  # struct input_event format
 
-    def __init__(self, device_path: str, config: Optional[Config] = None, quiet: bool = False, history_timeout: float = 1.0):
+    def __init__(self, device_path: str, config: Optional[Config] = None, quiet: bool = False):
         self.device_path = device_path
         self.config = config
         self.quiet = quiet
         self.button_state = ButtonState()
-        self.history = History(timeout=history_timeout)
+        self.history = History()
 
     def process_event(self, event_data: bytes) -> None:
         """Process a single event from the device"""
@@ -55,9 +55,6 @@ class DeviceHandler:
         # Add to history and display event immediately
         entry = self.history.add_entry(button, event, self.button_state.get_state())
         click.echo(str(entry))
-
-        # Clean up old entries for released buttons
-        self.history.cleanup_old_entries(self.button_state.get_state())
 
         # Check for matching patterns and execute commands
         if self.config:

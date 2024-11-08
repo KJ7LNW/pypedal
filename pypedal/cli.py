@@ -24,10 +24,8 @@ def main():
               help='Output format for events')
 @click.option('--quiet/--verbose', '-q/-v', default=False,
               help='Suppress additional output')
-@click.option('--timeout', '-t', type=float, default=1.0,
-              help='Time in seconds to keep history entries for button up events (default: 1.0)')
 @click.option('--debug', is_flag=True, help='Show the in-memory structure of the configuration after loading')
-def read(device, config, format, quiet, timeout, debug):
+def read(device, config, format, quiet, debug):
     """Read events from a USB foot pedal and execute configured commands.
     
     DEVICE: Path to input device (default: USB footpedal)
@@ -60,7 +58,7 @@ def read(device, config, format, quiet, timeout, debug):
             config_handler.dump_structure()
 
     # Create and run device handler
-    handler = DeviceHandler(device, config_handler, quiet, history_timeout=timeout)
+    handler = DeviceHandler(device, config_handler, quiet)
     handler.read_events()
 
 if __name__ == '__main__':

@@ -6,13 +6,13 @@ import re
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Dict
 from datetime import datetime
-from .pedal import HistoryEntry, ButtonEvent
+from .pedal import HistoryEntry, ButtonEvent, Button
 from pprint import pprint
 
 @dataclass
 class ButtonEventPatternElement:
     """Represents a single button event element in a sequence"""
-    button: int
+    button: Button
     event: ButtonEvent
 
     def __str__(self) -> str:
@@ -44,7 +44,7 @@ class ButtonEventPattern:
     def __repr__(self) -> str:
         return str(self)
 
-    def matches_history(self, history: List[HistoryEntry], current_time: datetime, pressed_buttons: Dict[int, ButtonEvent]) -> Tuple[bool, Optional[int]]:
+    def matches_history(self, history: List[HistoryEntry], current_time: datetime, pressed_buttons: Dict[Button, ButtonEvent]) -> Tuple[bool, Optional[int]]:
         """
         Check if this pattern matches the recent history and current pressed button state.
         Returns (matches, match_length) where match_length is the number of history entries to consume.
@@ -126,13 +126,13 @@ class Config:
 
             # Handle explicit v/^ notation for button press/release
             if part.endswith('v') or part.endswith('^'):
-                button = int(part[:-1])
+                button = Button(int(part[:-1]))
                 event = part[-1]
                 event_type = ButtonEvent.BUTTON_DOWN if event == 'v' else ButtonEvent.BUTTON_UP
                 sequence.append(ButtonEventPatternElement(button, event_type))
             else:
                 # Implicit press/release for single button
-                button = int(part)
+                button = Button(int(part))
                 sequence.append(ButtonEventPatternElement(button, ButtonEvent.BUTTON_DOWN))
                 sequence.append(ButtonEventPatternElement(button, ButtonEvent.BUTTON_UP))
 
@@ -147,7 +147,7 @@ class Config:
                 if line and not line.startswith('#'):
                     self.load_line(line, line_number)
 
-    def get_matching_command(self, history: List[HistoryEntry], pressed_buttons: Dict[int, ButtonEvent]) -> Tuple[Optional[str], Optional[int]]:
+    def get_matching_command(self, history: List[HistoryEntry], pressed_buttons: Dict[Button, ButtonEvent]) -> Tuple[Optional[str], Optional[int]]:
         """
         Get command for the best matching pattern in history.
         Returns (command, entries_to_consume) where entries_to_consume is the number

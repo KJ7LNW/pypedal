@@ -6,7 +6,7 @@ import select
 import subprocess
 import click
 from typing import Tuple, BinaryIO, Optional
-from .pedal import PedalState, History, ButtonEvent
+from .pedal import PedalState, History, ButtonEvent, Button
 from .config import Config
 
 # Event type mappings
@@ -18,9 +18,9 @@ EV_TYPES = {
 
 # Key code mappings for the pedal device buttons
 KEY_CODES = {
-    256: 1,  # Left pedal button
-    257: 2,  # Middle pedal button
-    258: 3   # Right pedal button
+    256: Button(1),  # Left pedal button
+    257: Button(2),  # Middle pedal button
+    258: Button(3)   # Right pedal button
 }
 
 class DeviceHandler:

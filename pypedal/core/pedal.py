@@ -7,6 +7,10 @@ from datetime import datetime
 import click
 from enum import Enum
 
+# Define the Button type
+class Button(int):
+    pass
+
 class ButtonEvent(Enum):
     """Button event types"""
     BUTTON_DOWN = True  # Maps to value == 1 from device events
@@ -15,16 +19,16 @@ class ButtonEvent(Enum):
 @dataclass
 class PedalState:
     """Tracks the state of all buttons on the pedal"""
-    states: Dict[int, ButtonEvent] = None
+    states: Dict[Button, ButtonEvent] = None
 
     def __init__(self):
-        self.states = {1: ButtonEvent.BUTTON_UP, 2: ButtonEvent.BUTTON_UP, 3: ButtonEvent.BUTTON_UP}
+        self.states = {Button(1): ButtonEvent.BUTTON_UP, Button(2): ButtonEvent.BUTTON_UP, Button(3): ButtonEvent.BUTTON_UP}
 
-    def update(self, button: int, event: ButtonEvent) -> None:
+    def update(self, button: Button, event: ButtonEvent) -> None:
         """Update the state of a button"""
         self.states[button] = event
 
-    def get_state(self) -> Dict[int, ButtonEvent]:
+    def get_state(self) -> Dict[Button, ButtonEvent]:
         """Get current state of all buttons"""
         return self.states.copy()
 
@@ -36,9 +40,9 @@ class PedalState:
 class HistoryEntry:
     """Represents a single event in history"""
     timestamp: datetime
-    button: int
+    button: Button
     event: ButtonEvent
-    button_states: Dict[int, ButtonEvent]
+    button_states: Dict[Button, ButtonEvent]
 
     def __str__(self) -> str:
         """String representation of history entry"""
@@ -51,7 +55,7 @@ class History:
     def __init__(self):
         self.entries: List[HistoryEntry] = []
 
-    def add_entry(self, button: int, event: ButtonEvent, button_states: Dict[int, ButtonEvent], timestamp: datetime = None) -> HistoryEntry:
+    def add_entry(self, button: Button, event: ButtonEvent, button_states: Dict[Button, ButtonEvent], timestamp: datetime = None) -> HistoryEntry:
         """Add a new entry to history"""
         entry = HistoryEntry(
             timestamp=timestamp or datetime.now(),

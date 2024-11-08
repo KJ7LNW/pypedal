@@ -2,6 +2,7 @@ import pytest
 from datetime import datetime, timedelta
 from pypedal.core.config import Config, ButtonEventPattern, ButtonEventPatternElement
 from pypedal.core.pedal import HistoryEntry, ButtonEvent
+from pypedal.core.device import Button
 
 def test_pattern_parse():
     config = Config()
@@ -21,11 +22,11 @@ def test_pattern_matches_history():
 
     now = datetime.now()
     history = [
-        HistoryEntry(now, 1, ButtonEvent.BUTTON_DOWN, {1: ButtonEvent.BUTTON_DOWN, 2: ButtonEvent.BUTTON_UP, 3: ButtonEvent.BUTTON_UP}),
-        HistoryEntry(now + timedelta(seconds=0.1), 2, ButtonEvent.BUTTON_DOWN, {1: ButtonEvent.BUTTON_DOWN, 2: ButtonEvent.BUTTON_DOWN, 3: ButtonEvent.BUTTON_UP}),
-        HistoryEntry(now + timedelta(seconds=0.2), 2, ButtonEvent.BUTTON_UP, {1: ButtonEvent.BUTTON_DOWN, 2: ButtonEvent.BUTTON_UP, 3: ButtonEvent.BUTTON_UP}),
+        HistoryEntry(now, Button(1), ButtonEvent.BUTTON_DOWN, {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_UP, Button(3): ButtonEvent.BUTTON_UP}),
+        HistoryEntry(now + timedelta(seconds=0.1), Button(2), ButtonEvent.BUTTON_DOWN, {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_DOWN, Button(3): ButtonEvent.BUTTON_UP}),
+        HistoryEntry(now + timedelta(seconds=0.2), Button(2), ButtonEvent.BUTTON_UP, {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_UP, Button(3): ButtonEvent.BUTTON_UP}),
     ]
-    pressed_buttons = {1: ButtonEvent.BUTTON_DOWN, 2: ButtonEvent.BUTTON_UP, 3: ButtonEvent.BUTTON_UP}
+    pressed_buttons = {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_UP, Button(3): ButtonEvent.BUTTON_UP}
 
     matches, length = pattern.matches_history(history, now + timedelta(seconds=0.3), pressed_buttons)
     assert matches
@@ -39,11 +40,11 @@ def test_pattern_does_not_match_when_extra_button_pressed():
 
     now = datetime.now()
     history = [
-        HistoryEntry(now, 1, ButtonEvent.BUTTON_DOWN, {1: ButtonEvent.BUTTON_DOWN, 2: ButtonEvent.BUTTON_UP, 3: ButtonEvent.BUTTON_UP}),
-        HistoryEntry(now + timedelta(seconds=0.1), 2, ButtonEvent.BUTTON_DOWN, {1: ButtonEvent.BUTTON_DOWN, 2: ButtonEvent.BUTTON_DOWN, 3: ButtonEvent.BUTTON_UP}),
-        HistoryEntry(now + timedelta(seconds=0.2), 2, ButtonEvent.BUTTON_UP, {1: ButtonEvent.BUTTON_DOWN, 2: ButtonEvent.BUTTON_UP, 3: ButtonEvent.BUTTON_UP}),
+        HistoryEntry(now, Button(1), ButtonEvent.BUTTON_DOWN, {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_UP, Button(3): ButtonEvent.BUTTON_UP}),
+        HistoryEntry(now + timedelta(seconds=0.1), Button(2), ButtonEvent.BUTTON_DOWN, {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_DOWN, Button(3): ButtonEvent.BUTTON_UP}),
+        HistoryEntry(now + timedelta(seconds=0.2), Button(2), ButtonEvent.BUTTON_UP, {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_UP, Button(3): ButtonEvent.BUTTON_UP}),
     ]
-    pressed_buttons = {1: ButtonEvent.BUTTON_DOWN, 2: ButtonEvent.BUTTON_UP, 3: ButtonEvent.BUTTON_DOWN}  # Extra button 3 is pressed
+    pressed_buttons = {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_UP, Button(3): ButtonEvent.BUTTON_DOWN}  # Extra button 3 is pressed
 
     matches, length = pattern.matches_history(history, now + timedelta(seconds=0.3), pressed_buttons)
     assert not matches
@@ -57,10 +58,10 @@ def test_pattern_respects_time_constraint():
     now = datetime.now()
     # Test within time constraint
     history1 = [
-        HistoryEntry(now, 1, ButtonEvent.BUTTON_DOWN, {1: ButtonEvent.BUTTON_DOWN, 2: ButtonEvent.BUTTON_UP, 3: ButtonEvent.BUTTON_UP}),
-        HistoryEntry(now + timedelta(seconds=0.4), 2, ButtonEvent.BUTTON_DOWN, {1: ButtonEvent.BUTTON_DOWN, 2: ButtonEvent.BUTTON_DOWN, 3: ButtonEvent.BUTTON_UP}),
+        HistoryEntry(now, Button(1), ButtonEvent.BUTTON_DOWN, {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_UP, Button(3): ButtonEvent.BUTTON_UP}),
+        HistoryEntry(now + timedelta(seconds=0.4), Button(2), ButtonEvent.BUTTON_DOWN, {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_DOWN, Button(3): ButtonEvent.BUTTON_UP}),
     ]
-    pressed_buttons = {1: ButtonEvent.BUTTON_DOWN, 2: ButtonEvent.BUTTON_DOWN, 3: ButtonEvent.BUTTON_UP}
+    pressed_buttons = {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_DOWN, Button(3): ButtonEvent.BUTTON_UP}
 
     matches, length = pattern.matches_history(history1, now + timedelta(seconds=0.45), pressed_buttons)
     assert matches
@@ -68,8 +69,8 @@ def test_pattern_respects_time_constraint():
 
     # Test exceeding time constraint
     history2 = [
-        HistoryEntry(now, 1, ButtonEvent.BUTTON_DOWN, {1: ButtonEvent.BUTTON_DOWN, 2: ButtonEvent.BUTTON_UP, 3: ButtonEvent.BUTTON_UP}),
-        HistoryEntry(now + timedelta(seconds=0.6), 2, ButtonEvent.BUTTON_DOWN, {1: ButtonEvent.BUTTON_DOWN, 2: ButtonEvent.BUTTON_DOWN, 3: ButtonEvent.BUTTON_UP}),
+        HistoryEntry(now, Button(1), ButtonEvent.BUTTON_DOWN, {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_UP, Button(3): ButtonEvent.BUTTON_UP}),
+        HistoryEntry(now + timedelta(seconds=0.6), Button(2), ButtonEvent.BUTTON_DOWN, {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_DOWN, Button(3): ButtonEvent.BUTTON_UP}),
     ]
 
     matches, length = pattern.matches_history(history2, now + timedelta(seconds=0.65), pressed_buttons)

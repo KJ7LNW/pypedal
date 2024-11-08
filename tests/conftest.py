@@ -5,8 +5,9 @@ import os
 import tempfile
 import pytest
 from datetime import datetime
-from pypedal.core.pedal import PedalState, HistoryEntry, History
+from pypedal.core.pedal import PedalState, HistoryEntry, History, ButtonEvent
 from pypedal.core.config import Config
+from pypedal.core.device import Button
 
 @pytest.fixture
 def button_state():
@@ -21,15 +22,15 @@ def history():
 @pytest.fixture
 def button_states():
     """Fixture providing a dict of button states"""
-    return {"1": False, "2": False, "3": False}
+    return {Button(1): ButtonEvent.BUTTON_UP, Button(2): ButtonEvent.BUTTON_UP, Button(3): ButtonEvent.BUTTON_UP}
 
 @pytest.fixture
 def history_entry(button_states):
     """Fixture providing a sample HistoryEntry"""
     return HistoryEntry(
         timestamp=datetime.now(),
-        button="1",
-        event="pressed",
+        button=Button(1),
+        event=ButtonEvent.BUTTON_DOWN,
         button_states=button_states
     )
 
@@ -61,9 +62,9 @@ def history_with_events(button_states):
     base_time = datetime.now()
     
     # Add a sequence of events
-    history.add_entry("1", "pressed", button_states)
-    history.add_entry("1", "released", button_states)
-    history.add_entry("2", "pressed", button_states)
-    history.add_entry("2", "released", button_states)
+    history.add_entry(Button(1), ButtonEvent.BUTTON_DOWN, button_states)
+    history.add_entry(Button(1), ButtonEvent.BUTTON_UP, button_states)
+    history.add_entry(Button(2), ButtonEvent.BUTTON_DOWN, button_states)
+    history.add_entry(Button(2), ButtonEvent.BUTTON_UP, button_states)
     
     return history

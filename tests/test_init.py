@@ -8,6 +8,8 @@ def test_core_exports():
     assert hasattr(core, 'PedalState')
     assert hasattr(core, 'HistoryEntry')
     assert hasattr(core, 'History')
+    assert hasattr(core, 'Button')
+    assert hasattr(core, 'ButtonEvent')
     assert hasattr(core, 'ButtonEventPattern')
     assert hasattr(core, 'ButtonEventPatternElement')
     assert hasattr(core, 'Config')
@@ -19,6 +21,8 @@ def test_import_all():
         'PedalState',
         'HistoryEntry',
         'History',
+        'Button',
+        'ButtonEvent',
         'ButtonEventPattern',
         'ButtonEventPatternElement',
         'Config',

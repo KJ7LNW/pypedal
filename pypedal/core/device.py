@@ -5,10 +5,10 @@ import struct
 import select
 import subprocess
 import click
-from typing import Tuple, BinaryIO, Optional
+from typing import Tuple, BinaryIO, Optional, List
 from .pedal import PedalState, ButtonEvent, Button
 from .history import History
-from .config import Config
+from .config import Config, ButtonEventPattern
 
 # Event type mappings
 EV_TYPES = {
@@ -29,22 +29,55 @@ class DeviceHandler:
     EVENT_SIZE = 24  # struct input_event size
     EVENT_FORMAT = 'llHHI'  # struct input_event format
 
-    def __init__(self, device_path: str, config: Optional[Config] = None, quiet: bool = False):
+    def __init__(self, device_path: str, config: Config = None, quiet: bool = False):
         self.device_path = device_path
         self.config = config
         self.quiet = quiet
         self.pedal_state = PedalState()
         self.history = History()
 
+    def find_matching_patterns(self) -> List[ButtonEventPattern]:
+        """Compare current history with configured patterns and return matching prefixes"""
+        if not self.config or not self.history.entries:
+            return []
+
+        matching_patterns = []
+        current_time = self.history.entries[-1].timestamp
+        current_states = self.pedal_state.get_state()
+
+        for pattern in self.config.patterns:
+            history_len = len(self.history.entries)
+            pattern_len = min(len(pattern.sequence), history_len)
+            matches = True
+
+            for i in range(pattern_len):
+                pattern_element = pattern.sequence[i]
+                history_entry = self.history.entries[i]
+
+                if not pattern_element.matches(history_entry):
+                    matches = False
+                    break
+
+                if i > 0:
+                    time_diff = (history_entry.timestamp - self.history.entries[0].timestamp).total_seconds()
+                    if time_diff > pattern.time_constraint:
+                        matches = False
+                        break
+
+            if matches:
+                matching_patterns.append(pattern)
+
+        return matching_patterns
+
     def process_event(self, event_data: bytes) -> None:
         """Process a single event from the pedal device"""
         if not event_data:
             return
 
-        (tv_sec, tv_usec, type_, code, value) = struct.unpack(self.EVENT_FORMAT, event_data)
+        (tv_sec, tv_usec, type, code, value) = struct.unpack(self.EVENT_FORMAT, event_data)
 
         # Skip non-key events
-        if type_ != 1:  # Not a key event
+        if type != 1:  # Not a key event
             return
 
         button = KEY_CODES.get(code)
@@ -62,19 +95,8 @@ class DeviceHandler:
         if not self.quiet:
             click.echo(str(entry))
 
-        # Check for matching patterns and execute commands
-        if self.config:
-            command, entries_to_consume = self.config.get_matching_command(self.history.entries, self.pedal_state.get_state())
-            if command:
-                try:
-                    if not self.quiet:
-                        click.echo(f"    Executing: {command}")
-                    subprocess.run(command, shell=True, check=True)
-                    # Consume matched entries to prevent re-triggering
-                    if entries_to_consume:
-                        self.history.entries = self.history.entries[entries_to_consume:]
-                except subprocess.CalledProcessError as e:
-                    click.echo(f"    Error executing command: {e}", err=True)
+        # display history
+        self.history.display_all()
 
     def read_events(self) -> None:
         """Read and process events from the pedal device"""

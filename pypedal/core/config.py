@@ -45,47 +45,6 @@ class ButtonEventPattern:
     def __repr__(self) -> str:
         return str(self)
 
-    def matches_history(self, history: List[HistoryEntry], current_time: datetime, pressed_buttons: Dict[Button, ButtonEvent]) -> Tuple[bool, Optional[int]]:
-        """
-        Check if this pattern matches the recent history and current pressed button state.
-        Returns (matches, match_length) where match_length is the number of history entries to consume.
-        """
-        if not history or len(history) < len(self.sequence):
-            return False, None
-
-        # Skip this pattern if any currently pressed buttons are not used in this pattern
-        pattern_buttons = set(element.button for element in self.sequence)
-        if any(button for button, state in pressed_buttons.items() if state == ButtonEvent.BUTTON_DOWN and button not in pattern_buttons):
-            return False, None
-
-        # Try to find a match starting at each possible position
-        for i in range(len(history) - len(self.sequence) + 1):
-            matches = True
-            first_timestamp = history[i].timestamp
-
-            # Check each event in the sequence
-            for j, element in enumerate(self.sequence):
-                if not element.matches(history[i + j]):
-                    matches = False
-                    break
-
-                # Check time constraint
-                time_diff = (history[i + j].timestamp - first_timestamp).total_seconds()
-                if time_diff > self.time_constraint:
-                    matches = False
-                    break
-
-            if matches:
-                # Check if the last event is within the time constraint
-                last_event_time = history[i + len(self.sequence) - 1].timestamp
-                if (current_time - last_event_time).total_seconds() > self.time_constraint:
-                    continue
-
-                # Return the number of history entries that matched
-                return True, len(self.sequence)
-
-        return False, None
-
 class Config:
     """Handles configuration file parsing and storage for the pedal device"""
     def __init__(self, config_file: str = None):
@@ -98,6 +57,38 @@ class Config:
 
     def __repr__(self) -> str:
         return str(self)
+
+    def find_matching_patterns(self, history: List[HistoryEntry], current_time: datetime, pressed_buttons: Dict[Button, ButtonEvent]) -> List[ButtonEventPattern]:
+        """
+        Find all patterns that match the current history as a full or partial prefix.
+        """
+        if not history:
+            return []
+
+        matching_patterns = []
+        for pattern in self.patterns:
+            history_len = len(history)
+            pattern_len = min(len(pattern.sequence), history_len)
+            matches = True
+
+            for i in range(pattern_len):
+                pattern_element = pattern.sequence[i]
+                history_entry = history[i]
+
+                if not pattern_element.matches(history_entry):
+                    matches = False
+                    break
+
+                if i > 0:
+                    time_diff = (history_entry.timestamp - history[0].timestamp).total_seconds()
+                    if time_diff > pattern.time_constraint:
+                        matches = False
+                        break
+
+            if matches:
+                matching_patterns.append(pattern)
+
+        return matching_patterns
 
     def load_line(self, line: str, line_number: int = 0) -> None:
         """Load a single configuration line"""
@@ -147,34 +138,6 @@ class Config:
                 line = line.strip()
                 if line and not line.startswith('#'):
                     self.load_line(line, line_number)
-
-    def get_matching_command(self, history: List[HistoryEntry], pressed_buttons: Dict[Button, ButtonEvent]) -> Tuple[Optional[str], Optional[int]]:
-        """
-        Get command for the best matching pattern in history.
-        Returns (command, entries_to_consume) where entries_to_consume is the number
-        of history entries that should be consumed after executing the command.
-        """
-        current_time = datetime.now()
-        
-        # Sort patterns by line number (ascending)
-        sorted_patterns = sorted(
-            self.patterns,
-            key=lambda p: p.line_number
-        )
-        
-        best_match = None
-        best_match_length = 0
-        
-        for pattern in sorted_patterns:
-            matches, match_length = pattern.matches_history(history, current_time, pressed_buttons)
-            if matches and match_length > best_match_length:
-                best_match = pattern
-                best_match_length = match_length
-        
-        if best_match:
-            return best_match.command, best_match_length
-        
-        return None, None
 
     def dump_structure(self) -> None:
         """Display the in-memory structure of the configuration"""

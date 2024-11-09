@@ -1,9 +1,10 @@
 import pytest
 from unittest.mock import Mock, patch
-from datetime import datetime
+from datetime import datetime, timedelta
 from pypedal.core.device import DeviceHandler, Button
 from pypedal.core.history import HistoryEntry
 from pypedal.core.pedal import ButtonEvent
+from pypedal.core.config import Config, ButtonEventPattern, ButtonEventPatternElement
 
 def create_event(type_, code, value):
     """Create a mock event"""
@@ -20,9 +21,7 @@ def test_device_handler_initialization():
     assert handler.quiet is False
 
 def test_process_event():
-    mock_config = Mock()
-    mock_config.get_matching_command.return_value = (None, None)  # Return a tuple
-    handler = DeviceHandler('/dev/null', config=mock_config, quiet=True)
+    handler = DeviceHandler('/dev/null', quiet=True)
 
     # Create a mock event (button 1 press)
     event = create_event(1, 256, 1)
@@ -34,57 +33,8 @@ def test_process_event():
     assert handler.history.entries[0].button == Button(1)
     assert handler.history.entries[0].event == ButtonEvent.BUTTON_DOWN
 
-def test_process_event_with_command():
-    mock_config = Mock()
-    mock_config.get_matching_command.return_value = ("test command", 1)
-    handler = DeviceHandler('/dev/null', config=mock_config, quiet=True)
-
-    # Create a mock event (button 1 press)
-    event = create_event(1, 256, 1)
-
-    with patch('subprocess.run') as mock_run:
-        handler.process_event(event)
-
-    mock_run.assert_called_once_with("test command", shell=True, check=True)
-
-def test_command_execution_with_history_consumption():
-    """Test that history is consumed after command execution"""
-    mock_config = Mock()
-
-    # Configure mock to return command only after seeing both button 1 and 2
-    def mock_get_matching_command(history, pressed_buttons):
-        if len(history) >= 2:
-            if (history[0].button == Button(1) and history[0].event == ButtonEvent.BUTTON_DOWN and
-                history[1].button == Button(2) and history[1].event == ButtonEvent.BUTTON_DOWN):
-                return "test command", 2
-        return None, None
-
-    mock_config.get_matching_command.side_effect = mock_get_matching_command
-
-    handler = DeviceHandler('/dev/null', config=mock_config, quiet=True)
-
-    # Add some events
-    press_event1 = create_event(1, 256, 1)  # Button 1 press
-    press_event2 = create_event(1, 257, 1)  # Button 2 press
-    press_event3 = create_event(1, 258, 1)  # Button 3 press
-
-    with patch('subprocess.run') as mock_run:
-        # Process events
-        handler.process_event(press_event1)
-        handler.process_event(press_event2)
-        handler.process_event(press_event3)
-
-        # Check that the command was executed
-        mock_run.assert_called_once_with("test command", shell=True, check=True)
-
-        # Check that history was consumed
-        assert len(handler.history.entries) == 1
-        assert handler.history.entries[0].button == Button(3)
-
 def test_read_events():
-    mock_config = Mock()
-    mock_config.get_matching_command.return_value = (None, None)  # Return a tuple
-    handler = DeviceHandler('/dev/null', config=mock_config, quiet=True)
+    handler = DeviceHandler('/dev/null', quiet=True)
 
     # Mock the open function to return a file-like object
     mock_file = Mock()
@@ -110,3 +60,112 @@ def test_read_events():
     assert handler.history.entries[0].event == ButtonEvent.BUTTON_DOWN
     assert handler.history.entries[1].button == Button(1)
     assert handler.history.entries[1].event == ButtonEvent.BUTTON_UP
+
+def test_find_matching_patterns_empty():
+    """Test find_matching_patterns with empty history or config"""
+    handler = DeviceHandler('/dev/null')
+    assert handler.find_matching_patterns() == []
+
+    handler.config = Config()
+    assert handler.find_matching_patterns() == []
+
+def test_find_matching_patterns_partial():
+    """Test find_matching_patterns with partial pattern matches"""
+    handler = DeviceHandler('/dev/null')
+    handler.config = Config()
+
+    # Create a pattern: Button1 down, Button2 down
+    pattern = ButtonEventPattern(
+        sequence=[
+            ButtonEventPatternElement(Button(1), ButtonEvent.BUTTON_DOWN),
+            ButtonEventPatternElement(Button(2), ButtonEvent.BUTTON_DOWN)
+        ],
+        time_constraint=1.0,
+        command="test"
+    )
+    handler.config.patterns = [pattern]
+
+    # Add just Button1 down to history
+    now = datetime.now()
+    handler.history.add_entry(
+        Button(1),
+        ButtonEvent.BUTTON_DOWN,
+        {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_UP},
+        now
+    )
+
+    # Should match as partial prefix
+    matches = handler.find_matching_patterns()
+    assert len(matches) == 1
+    assert matches[0] == pattern
+
+def test_find_matching_patterns_timing():
+    """Test find_matching_patterns with timing constraints"""
+    handler = DeviceHandler('/dev/null')
+    handler.config = Config()
+
+    # Create a pattern with 1 second time constraint
+    pattern = ButtonEventPattern(
+        sequence=[
+            ButtonEventPatternElement(Button(1), ButtonEvent.BUTTON_DOWN),
+            ButtonEventPatternElement(Button(2), ButtonEvent.BUTTON_DOWN)
+        ],
+        time_constraint=1.0,
+        command="test"
+    )
+    handler.config.patterns = [pattern]
+
+    # Add events with 2 second gap
+    now = datetime.now()
+    handler.history.add_entry(
+        Button(1),
+        ButtonEvent.BUTTON_DOWN,
+        {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_UP},
+        now
+    )
+    handler.history.add_entry(
+        Button(2),
+        ButtonEvent.BUTTON_DOWN,
+        {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_DOWN},
+        now + timedelta(seconds=2)
+    )
+
+    # Should not match due to timing
+    matches = handler.find_matching_patterns()
+    assert len(matches) == 0
+
+def test_find_matching_patterns_full():
+    """Test find_matching_patterns with full pattern matches"""
+    handler = DeviceHandler('/dev/null')
+    handler.config = Config()
+
+    # Create a pattern: Button1 down, Button2 down
+    pattern = ButtonEventPattern(
+        sequence=[
+            ButtonEventPatternElement(Button(1), ButtonEvent.BUTTON_DOWN),
+            ButtonEventPatternElement(Button(2), ButtonEvent.BUTTON_DOWN)
+        ],
+        time_constraint=1.0,
+        command="test"
+    )
+    handler.config.patterns = [pattern]
+
+    # Add matching sequence within time constraint
+    now = datetime.now()
+    handler.history.add_entry(
+        Button(1),
+        ButtonEvent.BUTTON_DOWN,
+        {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_UP},
+        now
+    )
+    handler.history.add_entry(
+        Button(2),
+        ButtonEvent.BUTTON_DOWN,
+        {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_DOWN},
+        now + timedelta(seconds=0.5)
+    )
+
+    # Should match fully
+    matches = handler.find_matching_patterns()
+    assert len(matches) == 1
+    assert matches[0] == pattern

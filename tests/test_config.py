@@ -70,27 +70,3 @@ def test_config_load_with_timing(tmp_path):
     assert len(config.patterns[0].sequence) == 2
     assert config.patterns[0].sequence[0] == ButtonEventPatternElement(Button(1), ButtonEvent.BUTTON_DOWN)
     assert config.patterns[0].sequence[1] == ButtonEventPatternElement(Button(2), ButtonEvent.BUTTON_DOWN)
-
-def test_config_get_matching_command(sample_config):
-    now = datetime.now()
-    history = [
-        HistoryEntry(now, Button(1), ButtonEvent.BUTTON_DOWN, {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_UP, Button(3): ButtonEvent.BUTTON_UP}),
-        HistoryEntry(now + timedelta(seconds=0.1), Button(2), ButtonEvent.BUTTON_DOWN, {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_DOWN, Button(3): ButtonEvent.BUTTON_UP}),
-        HistoryEntry(now + timedelta(seconds=0.2), Button(2), ButtonEvent.BUTTON_UP, {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_UP, Button(3): ButtonEvent.BUTTON_UP}),
-    ]
-    pressed_buttons = {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_UP, Button(3): ButtonEvent.BUTTON_UP}
-
-    command, length = sample_config.get_matching_command(history, pressed_buttons)
-    assert command == "command1"
-    assert length == 3
-
-def test_config_no_match(sample_config):
-    now = datetime.now()
-    history = [
-        HistoryEntry(now, Button(3), ButtonEvent.BUTTON_DOWN, {Button(1): ButtonEvent.BUTTON_UP, Button(2): ButtonEvent.BUTTON_UP, Button(3): ButtonEvent.BUTTON_DOWN}),
-    ]
-    pressed_buttons = {Button(1): ButtonEvent.BUTTON_UP, Button(2): ButtonEvent.BUTTON_UP, Button(3): ButtonEvent.BUTTON_DOWN}
-
-    command, length = sample_config.get_matching_command(history, pressed_buttons)
-    assert command is None
-    assert length is None

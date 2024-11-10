@@ -9,6 +9,8 @@ pypedal enables you to harness the full potential of USB foot pedals by defining
 ## Installation
 
 ```bash
+git clone https://github.com/KJ7LNW/pypedal.git pypedal
+cd pypedal
 pip install -e .
 ```
 

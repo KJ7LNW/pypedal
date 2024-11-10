@@ -14,6 +14,8 @@ cd pypedal
 pip install -e .
 ```
 
+(Note that upstream `pip install pypedal` is a [different project for pedigree analysis](https://github.com/wintermind/pypedal), so maybe I should rename this one!)
+
 ## Core Features
 
 ### Button Pattern Recognition

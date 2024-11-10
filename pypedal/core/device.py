@@ -125,7 +125,8 @@ class DeviceHandler:
         entry = self.history.add_entry(button, event, self.pedal_state.get_state())
         
         # Display current history
-        self.history.display_all()
+        if not self.quiet:
+            self.history.display_all()
 
         # Find and execute matching patterns
         matching_patterns = self.find_matching_patterns()

@@ -66,9 +66,9 @@ Note: Release-only events (^) must have corresponding press events (v).
     # Initialize configuration if provided
     config_handler = None
     if config:
-        click.echo(f"Using configuration file: {config}")
         config_handler = Config(config)
         if debug:
+            click.echo(f"Using configuration file: {config}")
             click.echo("Configuration structure:")
             config_handler.dump_structure()
 

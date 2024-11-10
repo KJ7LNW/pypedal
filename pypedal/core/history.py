@@ -32,9 +32,10 @@ class HistoryEntry:
         Where + means pressed, - means released
         """
         states = " ".join(f"B{b}:{'+' if s == ButtonEvent.BUTTON_DOWN else '-'}" for b, s in sorted(self.button_states.items()))
-        event_str = "pressed" if self.event == ButtonEvent.BUTTON_DOWN else "released"
+        event_str = "pressed " if self.event == ButtonEvent.BUTTON_DOWN else "released"
+        event_color = "green" if self.event == ButtonEvent.BUTTON_DOWN else "red"
         used_str = f"(used:{str(self.used)})"
-        return f"{self.timestamp.strftime('%H:%M:%S.%f')[:-3]} B{self.button} {event_str:8} | {states} {used_str}"
+        return f"{self.timestamp.strftime('%H:%M:%S.%f')[:-3]} B{self.button} {click.style(event_str, fg=event_color):8} | {states} {used_str}"
 
 class History:
     """
@@ -99,7 +100,7 @@ class History:
 
     def display_all(self) -> None:
         """Display all history entries"""
-        click.echo("\nHistory:")
-        for entry in self.entries:
-            click.echo("  " + str(entry))
-        click.echo("")
+        if self.entries:
+            click.secho("\n  History:", bold=True)
+            for entry in self.entries:
+                click.echo("   - " + str(entry))

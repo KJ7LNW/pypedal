@@ -53,7 +53,7 @@ class ButtonEventPattern:
     line_number: int = 0
 
     def __str__(self) -> str:
-        pattern = ",".join(str(element) for element in self.sequence)
+        pattern = self.sequence_str()
         if self.time_constraint != float('inf'):
             pattern += f" < {self.time_constraint}"
         pattern += f": {self.command}"
@@ -61,6 +61,9 @@ class ButtonEventPattern:
 
     def __repr__(self) -> str:
         return str(self)
+    
+    def sequence_str(self):
+        return ",".join(str(element) for element in self.sequence)
 
 class Config:
     """Handles configuration file parsing and storage for the pedal device"""

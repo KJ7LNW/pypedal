@@ -113,7 +113,7 @@ class DeviceHandler:
 
         button = KEY_CODES.get(code)
         if button is None:
-            click.echo(f"Unknown button code: {code}", err=True)
+            click.secho(f"  Error: Unknown button code: {code}", fg="red", err=True)
             return
 
         event = ButtonEvent.BUTTON_DOWN if value == 1 else ButtonEvent.BUTTON_UP
@@ -123,27 +123,20 @@ class DeviceHandler:
 
         # Record event in history for pattern matching
         entry = self.history.add_entry(button, event, self.pedal_state.get_state())
-        if not self.quiet:
-            click.echo(str(entry))
-
+        
         # Display current history
         self.history.display_all()
 
-        # Find matching patterns
+        # Find and execute matching patterns
         matching_patterns = self.find_matching_patterns()
-
-        if not self.quiet:
-            click.echo("\nMatching patterns:")
-            for pattern in matching_patterns:
-                click.echo(f"  - {pattern}")
-            click.echo("")
-
-        # Execute matching patterns
-        if (len(matching_patterns)):
-            cmd = matching_patterns[0].command
+        if matching_patterns:
+            pattern = matching_patterns[0]
             if not self.quiet:
-                click.echo(f"  - run: {cmd}")
-            subprocess.run(cmd, shell=True, check=True)
+                click.secho("  Patterns run:", bold=True)
+                click.secho(f"   - {pattern.sequence_str()}: {click.style(pattern.command, fg='yellow', bold=True)}", fg="cyan")
+
+            # Execute the command
+            subprocess.run(pattern.command, shell=True, check=True)
 
             # Mark history entries as used to prevent reuse
             self.history.set_used()
@@ -169,5 +162,5 @@ class DeviceHandler:
         except PermissionError:
             raise
         except Exception as e:
-            click.echo(f"Error: {str(e)}", err=True)
+            click.secho(f"  Error: {str(e)}", fg="red", err=True)
             raise

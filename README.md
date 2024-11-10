@@ -117,6 +117,11 @@ The history display shows:
 - Current state of all buttons
 - Pattern matching status
 
+## Supported Devices
+- Works out of the box with "USB 05f3:00ff PI Engineering, Inc. VEC Footpedal" without modification
+- Could be made to work with any Linux event-based input device. 
+- Button events are currently hard-coded and need to be made dynamic for better device compatibility, see pypedal/core/device.py if you get errors like 'Error: Unknown button code: 275'.
+
 ## Development
 
 Run the test suite:

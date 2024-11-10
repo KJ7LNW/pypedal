@@ -16,7 +16,7 @@ pip install -e .
 
 ### Button Pattern Recognition
 pypedal tracks the state of each pedal button and recognizes various patterns:
-- Single button press/release (e.g., `1v`, `1^`)
+- Single button press/release (e.g., `1v,1^`)
 - Multi-button combinations (e.g., `1v,2`)
 - Press-and-hold patterns (e.g., `2v,2^`)
 - Time-constrained combinations (`1v,2 < T`)
@@ -73,7 +73,9 @@ The configuration supports these pattern types:
 - `1v,2 < T`: Execute when sequence is within T seconds
 - `N`: Execute on both press and release (shorthand for Nv,N^)
 - `2v,2^`: Execute when button 2 is pressed and released
+
 Timing constraints can be added to any pattern:
+
 ```bash
 # Execute only if the sequence happens within 0.5 seconds
 1v,2 < 0.5: xdotool key ctrl+c
@@ -81,29 +83,29 @@ Timing constraints can be added to any pattern:
 
 ### Parsing Detail (and max_use)
 
-When a user presses 1v,2v,2^,3v,3^,1^ against the example above, the sequence gets processed like this:
+When a user presses `1v,2v,2^,3v,3^,1^` on their keypad against the example above, the sequence gets processed like this:
 
-1. 1v,2v,2^ arrives:
-   - Matches 1v,2 pattern for ctrl+c
-   - The 1v remains in history waiting for potential next matches
-   - The 2v,2^ is popped off stack on release.
+1. `1v,2v,2^` arrives:
+   - Matches `1v,2` pattern for ctrl+c
+   - The `1v` remains in history with `used=1` waiting for potential next matches
+   - The `2v,2^` is popped off stack on release.
 
 2. After that match:
-   - History still has 1v waiting
-   - System is ready for more potential matches using this 1v
+   - History still has `1v` waiting
+   - System is ready for more potential matches using this `1v`
 
-3. 3v,3^ arrives:
-   - Combined with waiting 1v, matches 1v,3 pattern for ctrl+v
-   - The 3v,3^ is popped off stack on release.
-   - The 1v again remains in history waiting
+3. `3v,3^` arrives:
+   - Combined with waiting `1v`, matches `1v,3` pattern for ctrl+v
+   - The `3v,3^` is popped off stack on release.
+   - The `1v` again remains in history waiting with `used=2`
    - The system is ready for more potential matches
 
-4. Finally 1^ arrives:
-   - Looking at history, we have 1v and 1^
-   - This could match the 1 pattern for middle click
-   - But 1v was already used in both ctrl+c and ctrl+v patterns so `1v` has `used=1`
-   - On the `1:` pattern, `max_use=0` is set internally (as a special case of `N:`) to prevent this unwanted trigger, so the sequence ends with no accidental middle click.
-   - However, if the pattern were `1v,1^:` instead of `1:`, `max_use=None` so it **would** execute `xdotool click 2` on release, since the stack terminates containing `1v,1^`.  
+4. Finally `1^` arrives:
+   - Looking at history, we _now_ have `1v` and `1^`
+   - This could (unintentionally) match the `1:` pattern for middle click (`xdotool click 2`)
+   - But `1v` was already used in both ctrl+c and ctrl+v patterns so `1v` has `used=2`, so if will not:
+       - When using the `N:` pattern, `max_use=0` is set internally (as a special case of `N:`) to prevent this unwanted trigger, so the sequence ends with no accidental command execution (`xdotool click 2`).
+       - However, if the pattern were `1v,1^:` instead of `1:`, `max_use=None` and it **would** execute `xdotool click 2` on release when the stack terminates containing `1v,1^`.  
 
 The above shows how the internal counter `used` and the `max_use` limit prevents unwanted pattern matches when holding buttons across multiple combinations. Without `max_use` tracking, releasing a held button could trigger unintended single-button patterns. Theoretically `max_use` could be configured per-sequence-element for complex sequences, but the syntax does not (currently) support that.  If if did, it might look like `1v[max_use=0],1^[max_use=0]: command` or `2v[max_use=99],3v[max_use=5],1v,...: command`. I'm not sure it that could be usefull or not...
 

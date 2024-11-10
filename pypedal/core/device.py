@@ -1,6 +1,7 @@
 """
 Pedal device event handling functionality
 """
+import os
 import struct
 import select
 import subprocess
@@ -37,35 +38,66 @@ class DeviceHandler:
         self.history = History()
 
     def find_matching_patterns(self) -> List[ButtonEventPattern]:
-        """Compare current history with configured patterns and return matching prefixes"""
+        """
+        Find patterns that match the current button event sequence to determine which command to execute.
+        
+        A pattern matches when:
+        1. Length matches history - ensures complete patterns only, preventing partial matches
+           e.g. "1v,2" won't match just on "1v" press
+        
+        2. Time constraints met - for patterns requiring quick button combinations
+           e.g. if "1v,2 < 0.5" requires button 2 within 0.5s of holding 1
+        
+        3. Button sequence matches exactly - both numbers and press/release types
+           e.g. "1v,2v" needs button 1 held while 2 pressed
+           e.g. "2v,2^" needs button 2 pressed then released
+        
+        4. Usage limits not exceeded - critical for single vs multi-button patterns
+           - Single button "1" sets max_use=0 to prevent combining with others
+           - Multi-button "1v,2" allows reuse (max_use=None) for combinations
+        """
         if not self.config or not self.history.entries:
             return []
 
         matching_patterns = []
-        current_time = self.history.entries[-1].timestamp
-        current_states = self.pedal_state.get_state()
+        history = self.history.entries
+        history_len = len(history)
 
-        for pattern in self.config.patterns:
-            history_len = len(self.history.entries)
-            pattern_len = min(len(pattern.sequence), history_len)
-            matches = True
+        # Check each history entry against pattern sequences
+        for i in range(history_len):
+            if i > 0:
+                time_diff = (history[i].timestamp - history[0].timestamp).total_seconds()
 
-            for i in range(pattern_len):
-                pattern_element = pattern.sequence[i]
-                history_entry = self.history.entries[i]
+            # Check each pattern
+            for pattern in self.config.patterns:
+                # Must match complete patterns only, not partial sequences
+                if len(pattern.sequence) != history_len:
+                    continue
 
-                if not pattern_element.matches(history_entry):
-                    matches = False
-                    break
+                # Time between button presses must be within constraint
+                # Critical for patterns requiring quick combinations
+                if i > 0 and time_diff > pattern.time_constraint:
+                    continue
 
-                if i > 0:
-                    time_diff = (history_entry.timestamp - self.history.entries[0].timestamp).total_seconds()
-                    if time_diff > pattern.time_constraint:
+                # Check all history entries up to current index
+                matches = True
+                for j in range(i + 1):
+                    # Button numbers and press/release types must match exactly
+                    # e.g. "1v,2v" needs button 1 held while 2 pressed
+                    if not pattern.sequence[j].matches(history[j]):
                         matches = False
                         break
 
-            if matches:
-                matching_patterns.append(pattern)
+                    # Check usage limits to handle single vs multi-button patterns
+                    # max_use=0 prevents single buttons combining with longer sequences
+                    # max_use=None allows multi-button combinations
+                    if pattern.sequence[j].max_use is not None and history[j].used > pattern.sequence[j].max_use:
+                        matches = False
+                        break
+
+                # Only complete matches trigger commands (last iteration)
+                if matches and i == history_len - 1:
+                    matching_patterns.append(pattern)
 
         return matching_patterns
 
@@ -87,16 +119,38 @@ class DeviceHandler:
 
         event = ButtonEvent.BUTTON_DOWN if value == 1 else ButtonEvent.BUTTON_UP
 
-        # Update button state
+        # Update internal button state tracking
         self.pedal_state.update(button, event)
 
-        # Add to history and display event immediately
+        # Record event in history for pattern matching
         entry = self.history.add_entry(button, event, self.pedal_state.get_state())
         if not self.quiet:
             click.echo(str(entry))
 
-        # display history
+        # Display current history
         self.history.display_all()
+
+        # Find matching patterns
+        matching_patterns = self.find_matching_patterns()
+
+        if not self.quiet:
+            click.echo("\nMatching patterns:")
+            for pattern in matching_patterns:
+                click.echo(f"  - {pattern}")
+            click.echo("")
+
+        # Execute matching patterns
+        if (len(matching_patterns)):
+            cmd = matching_patterns[0].command
+            if not self.quiet:
+                click.echo(f"  - run: {cmd}")
+            os.system(cmd)
+
+            # Mark history entries as used to prevent reuse
+            self.history.set_used()
+
+        # Clean up history after command execution
+        self.history.pop_released(self.pedal_state.get_state())
 
     def read_events(self) -> None:
         """Read and process events from the pedal device"""

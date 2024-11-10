@@ -1,7 +1,6 @@
 """
 Pedal device event handling functionality
 """
-import os
 import struct
 import select
 import subprocess
@@ -144,7 +143,7 @@ class DeviceHandler:
             cmd = matching_patterns[0].command
             if not self.quiet:
                 click.echo(f"  - run: {cmd}")
-            os.system(cmd)
+            subprocess.run(cmd, shell=True, check=True)
 
             # Mark history entries as used to prevent reuse
             self.history.set_used()

@@ -5,7 +5,7 @@ def test_mouse_button_sequence():
     """Test the sequence: B2p B2r triggering mousedown/mouseup"""
     config_lines = [
         "2v: echo mousedown 1",  # Left click
-        "2^: echo mouseup 1",    # un-Left click
+        "2v,2^: echo mouseup 1",    # un-Left click
     ]
 
     button_events = [

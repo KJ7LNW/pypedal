@@ -62,18 +62,34 @@ def test_history_sequence():
     assert history.entries[2].button == Button(2)
     assert history.entries[2].event == ButtonEvent.BUTTON_UP
 
-def test_history_consumption():
-    """Test history entry consumption"""
+def test_history_cleanup():
+    """Test history cleanup when buttons are released"""
     history = History()
     states = {Button(1): ButtonEvent.BUTTON_UP, Button(2): ButtonEvent.BUTTON_UP, Button(3): ButtonEvent.BUTTON_UP}
 
-    # Add 15 entries
-    for i in range(15):
-        history.add_entry(Button(1), ButtonEvent.BUTTON_DOWN, states)
+    # Press B1
+    states[Button(1)] = ButtonEvent.BUTTON_DOWN
+    history.add_entry(Button(1), ButtonEvent.BUTTON_DOWN, states.copy())
 
-    # Should keep last 10
-    history.consume_latest_matches()
-    assert len(history.entries) == 10
+    # Press B2
+    states[Button(2)] = ButtonEvent.BUTTON_DOWN
+    history.add_entry(Button(2), ButtonEvent.BUTTON_DOWN, states.copy())
+
+    # Release B2
+    states[Button(2)] = ButtonEvent.BUTTON_UP
+    history.add_entry(Button(2), ButtonEvent.BUTTON_UP, states.copy())
+
+    # Should keep B1, still pressed
+    history.pop_released(states)
+    assert len(history.entries) == 1
+
+    # Release B1
+    states[Button(1)] = ButtonEvent.BUTTON_UP
+    history.add_entry(Button(1), ButtonEvent.BUTTON_UP, states.copy())
+
+    # Should clear all entries since no buttons pressed
+    history.pop_released(states)
+    assert len(history.entries) == 0
 
 def test_history_state_tracking():
     """Test that history tracks button states correctly"""

@@ -55,11 +55,10 @@ def test_read_events():
         except KeyboardInterrupt:
             pass  # Expected behavior, do nothing
 
-    assert len(handler.history.entries) == 2
-    assert handler.history.entries[0].button == Button(1)
-    assert handler.history.entries[0].event == ButtonEvent.BUTTON_DOWN
-    assert handler.history.entries[1].button == Button(1)
-    assert handler.history.entries[1].event == ButtonEvent.BUTTON_UP
+    # History should be empty since all buttons are released
+    assert len(handler.history.entries) == 0
+    # and state should reflect the last event
+    assert handler.pedal_state.get_state()[Button(1)] == ButtonEvent.BUTTON_UP
 
 def test_find_matching_patterns_empty():
     """Test find_matching_patterns with empty history or config"""
@@ -68,36 +67,6 @@ def test_find_matching_patterns_empty():
 
     handler.config = Config()
     assert handler.find_matching_patterns() == []
-
-def test_find_matching_patterns_partial():
-    """Test find_matching_patterns with partial pattern matches"""
-    handler = DeviceHandler('/dev/null')
-    handler.config = Config()
-
-    # Create a pattern: Button1 down, Button2 down
-    pattern = ButtonEventPattern(
-        sequence=[
-            ButtonEventPatternElement(Button(1), ButtonEvent.BUTTON_DOWN),
-            ButtonEventPatternElement(Button(2), ButtonEvent.BUTTON_DOWN)
-        ],
-        time_constraint=1.0,
-        command="test"
-    )
-    handler.config.patterns = [pattern]
-
-    # Add just Button1 down to history
-    now = datetime.now()
-    handler.history.add_entry(
-        Button(1),
-        ButtonEvent.BUTTON_DOWN,
-        {Button(1): ButtonEvent.BUTTON_DOWN, Button(2): ButtonEvent.BUTTON_UP},
-        now
-    )
-
-    # Should match as partial prefix
-    matches = handler.find_matching_patterns()
-    assert len(matches) == 1
-    assert matches[0] == pattern
 
 def test_find_matching_patterns_timing():
     """Test find_matching_patterns with timing constraints"""

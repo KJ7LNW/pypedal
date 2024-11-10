@@ -75,44 +75,6 @@ class Config:
     def __repr__(self) -> str:
         return str(self)
 
-    def find_matching_patterns(self, history: List[HistoryEntry], current_time: datetime, pressed_buttons: Dict[Button, ButtonEvent]) -> List[ButtonEventPattern]:
-        """
-        Find all patterns that match the current history as a full or partial prefix.
-        
-        Matches patterns against history considering:
-        1. Button numbers and event types match
-        2. Time constraints between events are met
-        3. Usage limits (max_use) are not exceeded
-        """
-        if not history:
-            return []
-
-        matching_patterns = []
-        for pattern in self.patterns:
-            history_len = len(history)
-            pattern_len = min(len(pattern.sequence), history_len)
-            matches = True
-
-            for i in range(pattern_len):
-                pattern_element = pattern.sequence[i]
-                history_entry = history[i]
-
-                # Check both button number and event type match
-                if not pattern_element.matches(history_entry):
-                    matches = False
-                    break
-
-                # Verify time constraints between events
-                if i > 0:
-                    time_diff = (history_entry.timestamp - history[0].timestamp).total_seconds()
-                    if time_diff > pattern.time_constraint:
-                        matches = False
-                        break
-
-            if matches:
-                matching_patterns.append(pattern)
-
-        return matching_patterns
 
     def load_line(self, line: str, line_number: int = 0) -> None:
         """

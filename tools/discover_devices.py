@@ -2,10 +2,16 @@
 """
 Device discovery script for pypedal.
 Identifies USB pedal devices and generates configuration entries.
+
+Usage:
+    ./discover_devices.py [--output FILE]
+        --output FILE    Write output to specified file (creates directories if needed)
 """
 import subprocess
 import re
 import os
+import sys
+import argparse
 from pathlib import Path
 
 def run_command(cmd):
@@ -105,25 +111,45 @@ def generate_config(usb_devices, input_devices):
         
         config.append("")  # Empty line between devices
     
-    return "\n".join(config).rstrip()  # Remove trailing newline
+    return "\n".join(config) + "\n"  # Ensure final newline
+
+def write_output(content, output_file=None):
+    """Write content to file or stdout."""
+    if output_file:
+        try:
+            # Create parent directories if needed
+            os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
+            with open(output_file, 'w') as f:
+                f.write(content)
+            print(f"Configuration written to: {output_file}")
+        except OSError as e:
+            print(f"Error writing to {output_file}: {e}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        print("Generated configuration:")
+        print("------------------------")
+        print(content)
 
 def main():
     """Main entry point."""
+    parser = argparse.ArgumentParser(description="Discover USB pedal devices and generate configuration.")
+    parser.add_argument('--output', help='Write configuration to specified file')
+    args = parser.parse_args()
+
     vendor_product = "05f3:00ff"  # VEC Footpedal
-    print(f"Discovering USB devices (ID {vendor_product})...")
+    print(f"Discovering USB devices (ID {vendor_product})...", file=sys.stderr)
     usb_devices = parse_usb_devices(vendor_product)
     
     if not usb_devices:
-        print("No matching devices found")
-        return
+        print("No matching devices found", file=sys.stderr)
+        return 1
     
-    print(f"Found {len(usb_devices)} device(s)\n")
+    print(f"Found {len(usb_devices)} device(s)\n", file=sys.stderr)
     input_devices = get_input_devices()
     
     config = generate_config(usb_devices, input_devices)
-    print("Generated configuration:")
-    print("------------------------")
-    print(config)
+    write_output(config, args.output)
+    return 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -8,7 +8,8 @@ from pypedal.core.device import Button
 
 def test_button_state():
     """Test button state tracking"""
-    state = PedalState()
+    buttons = [Button(1), Button(2), Button(3)]
+    state = PedalState(buttons=buttons)
 
     # Test initial state
     assert all(s == ButtonEvent.BUTTON_UP for s in state.states.values())

@@ -28,14 +28,24 @@ class HistoryEntry:
     def __str__(self) -> str:
         """
         String representation of history entry
-        Format: "HH:MM:SS.mmm B1 pressed  | B1:+ B2:- (used:0)"
-        Where + means pressed, - means released
+        Format: "HH:MM:SS.mmm B1 pressed  | B1:+ B2:- B3:- B4:-... (used:0)"
+        Where:
+        - + means pressed, - means released
+        - Shows all available buttons
         """
-        states = " ".join(f"B{b}:{'+' if s == ButtonEvent.BUTTON_DOWN else '-'}" for b, s in sorted(self.button_states.items()))
+        state_parts = []
+        # Show all buttons in button_states
+        for button in sorted(self.button_states.keys()):
+            state = self.button_states.get(button, ButtonEvent.BUTTON_UP)
+            state_symbol = '+' if state == ButtonEvent.BUTTON_DOWN else '-'
+            state_parts.append(f"B{button}:{state_symbol}")
+        states = " ".join(state_parts)
+
         event_str = "pressed " if self.event == ButtonEvent.BUTTON_DOWN else "released"
         event_color = "green" if self.event == ButtonEvent.BUTTON_DOWN else "red"
+        button_str = f"B{self.button}"
         used_str = f"(used:{str(self.used)})"
-        return f"{self.timestamp.strftime('%H:%M:%S.%f')[:-3]} B{self.button} {click.style(event_str, fg=event_color):8} | {states} {used_str}"
+        return f"{self.timestamp.strftime('%H:%M:%S.%f')[:-3]} {button_str} {click.style(event_str, fg=event_color):8} | {states} {used_str}"
 
 class History:
     """
@@ -49,12 +59,18 @@ class History:
     """
     def __init__(self):
         self.entries: List[HistoryEntry] = []
+        self.all_buttons: List[Button] = []
 
     def add_entry(self, button: Button, event: ButtonEvent, button_states: Dict[Button, ButtonEvent], timestamp: datetime = None) -> HistoryEntry:
         """
         Add a new entry to history
         Records button event with current state of all buttons
         """
+        # Track all available buttons
+        for b in button_states:
+            if b not in self.all_buttons:
+                self.all_buttons.append(b)
+
         entry = HistoryEntry(
             timestamp=timestamp or datetime.now(),
             button=button,

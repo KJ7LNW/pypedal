@@ -5,7 +5,7 @@ import struct
 import select
 import subprocess
 import click
-from typing import Tuple, BinaryIO, Optional, List
+from typing import Tuple, BinaryIO, Optional, List, Dict
 from .pedal import PedalState, ButtonEvent, Button
 from .history import History
 from .config import Config, ButtonEventPattern
@@ -17,26 +17,18 @@ EV_TYPES = {
     4: "EV_MSC"   # Miscellaneous event
 }
 
-# Key code mappings for the pedal device buttons
-KEY_CODES = {
-    256: Button(1),  # Left pedal button
-    257: Button(2),  # Middle pedal button
-    258: Button(3),  # Right pedal button
-    259: Button(4),  # Second device button 1
-    260: Button(5),  # Second device button 2
-    261: Button(6)   # Second device button 3
-}
-
 class DeviceHandler:
     """Handles reading and processing pedal device events"""
     EVENT_SIZE = 24  # struct input_event size
     EVENT_FORMAT = 'llHHI'  # struct input_event format
 
-    def __init__(self, device_path: str, config: Config = None, quiet: bool = False, history: History = None):
+    def __init__(self, device_path: str, key_codes: Dict[int, Button], config: Config = None,
+                 quiet: bool = False, history: History = None):
         self.device_path = device_path
+        self.key_codes = key_codes
         self.config = config
         self.quiet = quiet
-        self.pedal_state = PedalState()
+        self.pedal_state = PedalState(buttons=list(key_codes.values()))
         # Use provided history or create new one
         self.history = history if history is not None else History()
 
@@ -115,7 +107,7 @@ class DeviceHandler:
         if type != 1:  # Not a key event
             return
 
-        button = KEY_CODES.get(code)
+        button = self.key_codes.get(code)
         if button is None:
             click.secho(f"  Error: Unknown button code: {code}", fg="red", err=True)
             return

@@ -15,13 +15,24 @@ def create_event(type_, code, value):
            value.to_bytes(4, 'little')
 
 def test_device_handler_initialization():
-    handler = DeviceHandler('/dev/null')
+    key_codes = {
+        256: Button(1),  # Left pedal button
+        257: Button(2),  # Middle pedal button
+        258: Button(3)   # Right pedal button
+    }
+    handler = DeviceHandler('/dev/null', key_codes=key_codes)
     assert handler.device_path == '/dev/null'
     assert handler.config is None
     assert handler.quiet is False
+    assert handler.key_codes == key_codes
 
 def test_process_event():
-    handler = DeviceHandler('/dev/null', quiet=True)
+    key_codes = {
+        256: Button(1),  # Left pedal button
+        257: Button(2),  # Middle pedal button
+        258: Button(3)   # Right pedal button
+    }
+    handler = DeviceHandler('/dev/null', key_codes=key_codes, quiet=True)
 
     # Create a mock event (button 1 press)
     event = create_event(1, 256, 1)
@@ -34,7 +45,12 @@ def test_process_event():
     assert handler.history.entries[0].event == ButtonEvent.BUTTON_DOWN
 
 def test_read_events():
-    handler = DeviceHandler('/dev/null', quiet=True)
+    key_codes = {
+        256: Button(1),  # Left pedal button
+        257: Button(2),  # Middle pedal button
+        258: Button(3)   # Right pedal button
+    }
+    handler = DeviceHandler('/dev/null', key_codes=key_codes, quiet=True)
 
     # Mock the open function to return a file-like object
     mock_file = Mock()
@@ -62,7 +78,12 @@ def test_read_events():
 
 def test_find_matching_patterns_empty():
     """Test find_matching_patterns with empty history or config"""
-    handler = DeviceHandler('/dev/null')
+    key_codes = {
+        256: Button(1),  # Left pedal button
+        257: Button(2),  # Middle pedal button
+        258: Button(3)   # Right pedal button
+    }
+    handler = DeviceHandler('/dev/null', key_codes=key_codes)
     assert handler.find_matching_patterns() == []
 
     handler.config = Config()
@@ -70,7 +91,12 @@ def test_find_matching_patterns_empty():
 
 def test_find_matching_patterns_timing():
     """Test find_matching_patterns with timing constraints"""
-    handler = DeviceHandler('/dev/null')
+    key_codes = {
+        256: Button(1),  # Left pedal button
+        257: Button(2),  # Middle pedal button
+        258: Button(3)   # Right pedal button
+    }
+    handler = DeviceHandler('/dev/null', key_codes=key_codes)
     handler.config = Config()
 
     # Create a pattern with 1 second time constraint
@@ -105,7 +131,12 @@ def test_find_matching_patterns_timing():
 
 def test_find_matching_patterns_full():
     """Test find_matching_patterns with full pattern matches"""
-    handler = DeviceHandler('/dev/null')
+    key_codes = {
+        256: Button(1),  # Left pedal button
+        257: Button(2),  # Middle pedal button
+        258: Button(3)   # Right pedal button
+    }
+    handler = DeviceHandler('/dev/null', key_codes=key_codes)
     handler.config = Config()
 
     # Create a pattern: Button1 down, Button2 down

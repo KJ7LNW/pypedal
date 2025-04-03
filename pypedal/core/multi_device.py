@@ -6,6 +6,7 @@ import click
 from typing import List, Tuple, Dict
 from .device import DeviceHandler
 from .config import Config
+from .pedal import Button
 from .history import History
 
 class MultiDeviceHandler:
@@ -24,23 +25,30 @@ class MultiDeviceHandler:
         self.config = config
         self.history = History()  # Shared history for all devices
         
-        # Create handlers with offset button numbers and shared history
-        button_offset = 0
-        
         # First open all devices to get file descriptors
         device_files = []
+        next_button = 1  # Counter for unique button numbers
+        
         for device_path, buttons in devices:
-            # Pass shared history to each handler
-            handler = DeviceHandler(device_path, config, history=self.history)
+            # Get key codes from config
+            device_key_codes = config.devices.get(device_path)
+            if not device_key_codes:
+                raise ValueError(f"No key codes configured for device {device_path}")
+                
+            # Map system key codes to sequential button numbers
+            key_codes = {}
+            for system_key_code in device_key_codes:
+                key_codes[system_key_code] = Button(next_button)
+                next_button += 1
+            
+            # Pass shared history and key_codes to handler
+            handler = DeviceHandler(device_path, key_codes=key_codes, config=config, history=self.history)
             self.handlers.append(handler)
             
             # Open device and store file descriptor mapping
             dev = open(device_path, 'rb', buffering=0)
             device_files.append(dev)
             self.device_fds[dev.fileno()] = handler
-            
-            # Offset button numbers for next device
-            button_offset += len(buttons)
             
         # Close devices after getting FDs
         for dev in device_files:

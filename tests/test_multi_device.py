@@ -13,6 +13,11 @@ from pypedal.core.pedal import Button, ButtonEvent
 def test_multi_device_init():
     """Test MultiDeviceHandler initialization"""
     config = Config()
+    # Configure device key codes
+    config.devices = {
+        "/dev/input/event0": [256, 257, 258],  # First device key codes
+        "/dev/input/event1": [259, 260, 261]   # Second device key codes
+    }
     devices = [
         ("/dev/input/event0", [1, 2, 3]),
         ("/dev/input/event1", [4, 5, 6])
@@ -36,6 +41,11 @@ def test_multi_device_init():
 def test_multi_device_read_events():
     """Test reading events from multiple devices"""
     config = Config()
+    # Configure device key codes
+    config.devices = {
+        "/dev/input/event0": [256, 257, 258],
+        "/dev/input/event1": [259, 260, 261]
+    }
     devices = [
         ("/dev/input/event0", [1, 2, 3]),
         ("/dev/input/event1", [4, 5, 6])
@@ -69,6 +79,11 @@ def test_multi_device_read_events():
 def test_device_disconnection():
     """Test handling of device disconnection"""
     config = Config()
+    # Configure device key codes
+    config.devices = {
+        "/dev/input/event0": [256, 257, 258],
+        "/dev/input/event1": [259, 260, 261]
+    }
     devices = [
         ("/dev/input/event0", [1, 2, 3]),
         ("/dev/input/event1", [4, 5, 6])
@@ -101,6 +116,11 @@ def test_device_disconnection():
 def test_shared_history_across_devices():
     """Test that button history is shared across devices for pattern matching"""
     config = Config()
+    # Configure device key codes
+    config.devices = {
+        "/dev/input/event0": [256, 257, 258],
+        "/dev/input/event1": [259, 260, 261]
+    }
     
     # Add patterns for individual and combined device buttons
     # Pattern for device 1
@@ -223,6 +243,11 @@ dev: /dev/input/event1 [4, 5, 6]
 def test_multi_device_button_events():
     """Test button events from multiple devices trigger correct patterns"""
     config = Config()
+    # Configure device key codes
+    config.devices = {
+        "/dev/input/event0": [256, 257, 258],
+        "/dev/input/event1": [259, 260, 261]
+    }
     
     # Add test patterns for different devices
     dev1_pattern = ButtonEventPattern(

@@ -1,7 +1,7 @@
 """Helper functions for testing button sequences"""
 import pytest
 from unittest.mock import Mock, patch
-from pypedal.core.device import DeviceHandler
+from pypedal.core.device import DeviceHandler, Button
 from pypedal.core.config import Config
 
 def create_event(type_, code, value):
@@ -29,7 +29,16 @@ def run_button_sequence(config_lines, button_events, expected_commands):
     # Track executed commands
     executed_commands = []
     
-    handler = DeviceHandler('/dev/null', config=config, quiet=True)
+    # Default key code mappings for tests
+    key_codes = {
+        256: Button(1),  # Left pedal button
+        257: Button(2),  # Middle pedal button
+        258: Button(3),  # Right pedal button
+        259: Button(4),  # Second device button 1
+        260: Button(5),  # Second device button 2
+        261: Button(6)   # Second device button 3
+    }
+    handler = DeviceHandler('/dev/null', key_codes=key_codes, config=config, quiet=True)
 
     # Create events from button sequence
     events = [create_event(1, code, value) for code, value in button_events]

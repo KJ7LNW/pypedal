@@ -2,7 +2,7 @@
 Pedal state tracking functionality
 """
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, List
 from enum import Enum
 
 # Define the Button type
@@ -33,11 +33,9 @@ class PedalState:
     """
     states: Dict[Button, ButtonEvent] = None
 
-    def __init__(self):
+    def __init__(self, buttons: List[Button]):
         """Initialize all buttons to released state"""
-        self.states = {Button(1): ButtonEvent.BUTTON_UP, 
-                      Button(2): ButtonEvent.BUTTON_UP, 
-                      Button(3): ButtonEvent.BUTTON_UP}
+        self.states = {button: ButtonEvent.BUTTON_UP for button in buttons}
 
     def update(self, button: Button, event: ButtonEvent) -> None:
         """

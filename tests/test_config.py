@@ -2,6 +2,7 @@ import pytest
 from datetime import datetime, timedelta
 from pypedal.core.config import Config, ButtonEventPatternElement
 from pypedal.core.history import HistoryEntry
+from typing import Dict, List
 from pypedal.core.pedal import ButtonEvent
 from pypedal.core.device import Button
 from pprint import pprint
@@ -50,6 +51,33 @@ def test_config_load(tmp_path):
     assert config.patterns[2].sequence[0] == ButtonEventPatternElement(Button(2), ButtonEvent.BUTTON_DOWN)
     assert config.patterns[2].command == "command3"
     assert config.patterns[2].time_constraint == float('inf')
+
+
+def test_device_config(tmp_path):
+    config_file = tmp_path / "test_config.conf"
+    config_file.write_text(
+        "dev: /dev/input/event0 [256,257,258]\n"
+        "dev: /dev/input/event1 [259,260]\n"
+        "1v,2v: command1\n"
+    )
+    
+    config = Config(str(config_file))
+    
+    # Verify device configurations
+    assert len(config.devices) == 2
+    assert config.devices["/dev/input/event0"] == [256, 257, 258]
+    assert config.devices["/dev/input/event1"] == [259, 260]
+
+    # Verify pattern parsing
+    assert len(config.patterns) == 1
+    pattern = config.patterns[0]
+    assert pattern.command == "command1"
+    assert pattern.time_constraint == float('inf')
+    
+    # Verify pattern sequence - explicit v notation means no automatic releases
+    assert len(pattern.sequence) == 2
+    assert pattern.sequence[0] == ButtonEventPatternElement(Button(1), ButtonEvent.BUTTON_DOWN)
+    assert pattern.sequence[1] == ButtonEventPatternElement(Button(2), ButtonEvent.BUTTON_DOWN)
 
 def test_config_load_with_timing(tmp_path):
     config_file = tmp_path / "test_config.conf"

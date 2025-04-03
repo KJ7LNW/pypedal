@@ -69,6 +69,7 @@ class Config:
     """Handles configuration file parsing and storage for the pedal device"""
     def __init__(self, config_file: str = None):
         self.patterns: List[ButtonEventPattern] = []
+        self.devices: Dict[str, List[int]] = {}  # Maps device paths to key codes
         if config_file and os.path.exists(config_file):
             self.load(config_file)
 
@@ -78,16 +79,31 @@ class Config:
     def __repr__(self) -> str:
         return str(self)
 
+    def load_device_config(self, line: str) -> bool:
+        """Parse device configuration line if present"""
+        dev_match = re.match(r'^dev:\s*([^\s]+)\s*\[([\d,\s]+)\]', line)
+        if dev_match:
+            device_path = dev_match.group(1)
+            key_codes = [int(code.strip()) for code in dev_match.group(2).split(',')]
+            self.devices[device_path] = key_codes
+            return True
+        return False
 
     def load_line(self, line: str, line_number: int = 0) -> None:
         """
         Load a single configuration line
         
-        Handles pattern formats:
-        1. "1v,2: command" - Explicit multi-button sequence
-        2. "1: command" - Implicit single button press-release, where max_use must be 0
-        3. "2v,2^: command" - Explicit press-release sequence
+        Handles formats:
+        1. "dev: /dev/input/eventX [code1,code2,...]" - Device configuration
+        2. "1v,2: command" - Explicit multi-button sequence
+        3. "1: command" - Implicit single button press-release
+        4. "2v,2^: command" - Explicit press-release sequence
         """
+
+        # Try to parse as device config first
+        if self.load_device_config(line):
+            return
+
         # Split pattern and command
         match = re.match(r'^([^:]+):(.*)$', line)
         if not match:

@@ -4,6 +4,7 @@ Core functionality for pypedal
 from .pedal import PedalState, Button, ButtonEvent
 from .history import HistoryEntry, History
 from .config import ButtonEventPattern, ButtonEventPatternElement, Config
+from .multi_device import MultiDeviceHandler
 from .device import DeviceHandler
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     'ButtonEventPattern',
     'ButtonEventPatternElement',
     'Config',
-    'DeviceHandler'
+    'DeviceHandler',
+    'MultiDeviceHandler'
 ]

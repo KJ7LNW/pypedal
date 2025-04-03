@@ -10,14 +10,33 @@ from pprint import pprint
 @pytest.fixture
 def sample_config():
     config = Config()
-    config.load_line("1v,2v,2^: command1", 1)
-    config.load_line("1v,3v,3^: command2", 2)
-    config.load_line("2v: command3", 3)
+    config.load_line("dev: /dev/input/event0 [1,2,3]", 1)
+    config.load_line("1v,2v,2^: command1", 2)
+    config.load_line("1v,3v,3^: command2", 3)
+    config.load_line("2v: command3", 4)
     return config
+
+def test_device_config_parsing():
+    """Test device configuration parsing"""
+    config = Config()
+    config.load_line("dev: /dev/input/event0 [1,2,3]")
+    assert len(config.devices) == 1
+    assert "/dev/input/event0" in config.devices
+    assert config.devices["/dev/input/event0"] == [1, 2, 3]
+
+def test_multiple_device_configs():
+    """Test parsing multiple device configurations"""
+    config = Config()
+    config.load_line("dev: /dev/input/event0 [1,2,3]")
+    config.load_line("dev: /dev/input/event1 [4,5,6]")
+    assert len(config.devices) == 2
+    assert config.devices["/dev/input/event0"] == [1, 2, 3]
+    assert config.devices["/dev/input/event1"] == [4, 5, 6]
 
 def test_config_load(tmp_path):
     config_file = tmp_path / "test_config.conf"
     config_file.write_text(
+        "dev: /dev/input/event0 [1,2,3]\n"
         "1v,2v,2^: command1\n"
         "1v,3v,3^: command2\n"
         "2v: command3\n"
@@ -27,8 +46,13 @@ def test_config_load(tmp_path):
     print("\nConfig patterns:")
     pprint(config)
     
-    # Verify first pattern (1v,2v,2^)
-    assert len(config.patterns) == 3  # One pattern per line
+    # Verify device configuration
+    assert len(config.devices) == 1
+    assert "/dev/input/event0" in config.devices
+    assert config.devices["/dev/input/event0"] == [1, 2, 3]
+
+    # Verify patterns
+    assert len(config.patterns) == 3  # Three pattern lines
     
     # Check first pattern sequence
     assert len(config.patterns[0].sequence) == 3

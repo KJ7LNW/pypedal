@@ -156,4 +156,7 @@ class Config:
 
     def dump_structure(self) -> None:
         """Display the in-memory structure of the configuration"""
+        print("Devices:")
+        pprint(self.devices)
+        print("\nPatterns:")
         pprint(self.patterns)

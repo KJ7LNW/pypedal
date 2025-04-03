@@ -4,7 +4,7 @@ Command line interface for pypedal
 import click
 import signal
 import sys
-from .core import Config, DeviceHandler
+from .core import Config, MultiDeviceHandler
 
 def handle_interrupt(signum, frame):
     """Handle interrupt signal"""
@@ -12,19 +12,19 @@ def handle_interrupt(signum, frame):
 
 @click.command(context_settings=dict(help_option_names=['-h', '--help']))
 @click.version_option()
-@click.argument('device', default='/dev/input/by-id/usb-VEC_VEC_USB_Footpedal-event-if00', required=False)
 @click.option('--config', '-c', type=click.Path(exists=True, dir_okay=False),
-              help='Config file with pattern:command mappings')
+              help='Config file with device and pattern mappings', required=True)
 @click.option('--quiet', '-q', is_flag=True, help='Suppress additional output')
 @click.option('--debug', is_flag=True, help='Show config structure after loading')
-def main(device, config, quiet, debug):
-    """pypedal - A Python-based command line tool for USB foot pedals.
-
-DEVICE: Path to input device (default: USB footpedal)
+def main(config, quiet, debug):
+    """pypedal - A Python-based command line tool for multiple USB foot pedals.
 
 The configuration file supports the following patterns for the pedal's buttons:
 
 \b
+Device configuration:
+    dev: /path/to/device [1,2,3]   Configure device with button codes
+
 Pattern syntax:
     Nv: command         Execute when button N is pressed (v)
     N^: command         Execute when button N is released (^)
@@ -63,17 +63,20 @@ Note: Release-only events (^) must have corresponding press events (v).
     signal.signal(signal.SIGINT, handle_interrupt)
     signal.signal(signal.SIGTERM, handle_interrupt)
 
-    # Initialize configuration if provided
-    config_handler = None
-    if config:
-        config_handler = Config(config)
-        if debug:
-            click.echo(f"Using configuration file: {config}")
-            click.echo("Configuration structure:")
-            config_handler.dump_structure()
+    # Initialize configuration
+    config_handler = Config(config)
+    if debug:
+        click.echo(f"Using configuration file: {config}")
+        click.echo("Configuration structure:")
+        config_handler.dump_structure()
 
-    # Create and run device handler
-    handler = DeviceHandler(device, config_handler, quiet)
+    # Get configured devices
+    devices = [(path, codes) for path, codes in config_handler.devices.items()]
+    if not devices:
+        raise click.UsageError("No devices configured. Add device configs like: dev: /path/to/device [1,2,3]")
+
+    # Create and run multi-device handler
+    handler = MultiDeviceHandler(devices, config_handler)
     handler.read_events()
 
 if __name__ == '__main__':

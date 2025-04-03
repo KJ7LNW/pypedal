@@ -6,6 +6,7 @@ import click
 from typing import List, Tuple, Dict
 from .device import DeviceHandler
 from .config import Config
+from .history import History
 
 class MultiDeviceHandler:
     """Manages multiple pedal devices with offset button numbering"""
@@ -21,14 +22,16 @@ class MultiDeviceHandler:
         self.handlers: List[DeviceHandler] = []
         self.device_fds: Dict[int, DeviceHandler] = {}
         self.config = config
+        self.history = History()  # Shared history for all devices
         
-        # Create handlers with offset button numbers
+        # Create handlers with offset button numbers and shared history
         button_offset = 0
         
         # First open all devices to get file descriptors
         device_files = []
         for device_path, buttons in devices:
-            handler = DeviceHandler(device_path, config)
+            # Pass shared history to each handler
+            handler = DeviceHandler(device_path, config, history=self.history)
             self.handlers.append(handler)
             
             # Open device and store file descriptor mapping

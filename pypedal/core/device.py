@@ -21,7 +21,10 @@ EV_TYPES = {
 KEY_CODES = {
     256: Button(1),  # Left pedal button
     257: Button(2),  # Middle pedal button
-    258: Button(3)   # Right pedal button
+    258: Button(3),  # Right pedal button
+    259: Button(4),  # Second device button 1
+    260: Button(5),  # Second device button 2
+    261: Button(6)   # Second device button 3
 }
 
 class DeviceHandler:
@@ -29,12 +32,13 @@ class DeviceHandler:
     EVENT_SIZE = 24  # struct input_event size
     EVENT_FORMAT = 'llHHI'  # struct input_event format
 
-    def __init__(self, device_path: str, config: Config = None, quiet: bool = False):
+    def __init__(self, device_path: str, config: Config = None, quiet: bool = False, history: History = None):
         self.device_path = device_path
         self.config = config
         self.quiet = quiet
         self.pedal_state = PedalState()
-        self.history = History()
+        # Use provided history or create new one
+        self.history = history if history is not None else History()
 
     def find_matching_patterns(self) -> List[ButtonEventPattern]:
         """

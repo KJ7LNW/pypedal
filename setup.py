@@ -1,4 +1,8 @@
 from setuptools import setup, find_packages
+import os
+
+# Set umask to get standard permissions (rwxr-xr-x for dirs, rw-r--r-- for files)
+os.umask(0o022)
 
 setup(
     name="pypedal",

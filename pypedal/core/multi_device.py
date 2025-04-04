@@ -6,7 +6,7 @@ import click
 from typing import List, Tuple, Dict
 from .device import DeviceHandler
 from .config import Config
-from .pedal import Button
+from .pedal import Button, PedalState
 from .history import History
 
 class MultiDeviceHandler:
@@ -22,12 +22,14 @@ class MultiDeviceHandler:
         """
         self.handlers: List[DeviceHandler] = []
         self.device_fds: Dict[int, DeviceHandler] = {}
+        self.device_key_codes: Dict[str, Dict[int, Button]] = {}  # Store key_codes per device
         self.config = config
         self.history = History()  # Shared history for all devices
         
-        # First open all devices to get file descriptors
+        # First collect all buttons for shared state
         device_files = []
         next_button = 1  # Counter for unique button numbers
+        all_buttons = []  # Track all buttons across devices
         
         for device_path, buttons in devices:
             # Get key codes from config
@@ -38,11 +40,27 @@ class MultiDeviceHandler:
             # Map system key codes to sequential button numbers
             key_codes = {}
             for system_key_code in device_key_codes:
-                key_codes[system_key_code] = Button(next_button)
+                button = Button(next_button)
+                key_codes[system_key_code] = button
+                all_buttons.append(button)
                 next_button += 1
             
-            # Pass shared history and key_codes to handler
-            handler = DeviceHandler(device_path, key_codes=key_codes, config=config, history=self.history)
+            # Keep key_codes for handler creation after state init
+            self.device_key_codes[device_path] = key_codes
+
+        # Create shared state with all buttons
+        self.pedal_state = PedalState(all_buttons)
+        
+        # Now create handlers with shared state
+        for device_path, _buttons in devices:
+            # Pass shared history, state and key_codes to each device handler
+            handler = DeviceHandler(
+                device_path,
+                key_codes=self.device_key_codes[device_path],
+                config=config,
+                history=self.history,
+                pedal_state=self.pedal_state  # Pass shared state
+            )
             self.handlers.append(handler)
             
             # Open device and store file descriptor mapping

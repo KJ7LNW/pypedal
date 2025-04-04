@@ -23,12 +23,28 @@ class DeviceHandler:
     EVENT_FORMAT = 'llHHI'  # struct input_event format
 
     def __init__(self, device_path: str, key_codes: Dict[int, Button], config: Config = None,
-                 quiet: bool = False, history: History = None):
+                 quiet: bool = False, history: History = None, pedal_state: PedalState = None):
+        """
+        Initialize device handler
+        
+        Args:
+            device_path: Path to input device
+            key_codes: Mapping of system key codes to button numbers
+            config: Button pattern configuration
+            quiet: Suppress output
+            history: Shared history for pattern matching
+            pedal_state: Shared state for button tracking
+        """
         self.device_path = device_path
         self.key_codes = key_codes
         self.config = config
         self.quiet = quiet
-        self.pedal_state = PedalState(buttons=list(key_codes.values()))
+        
+        # Use provided shared state or create new one
+        if pedal_state is not None:
+            self.pedal_state = pedal_state
+        else:
+            self.pedal_state = PedalState(buttons=list(key_codes.values()))
         # Use provided history or create new one
         self.history = history if history is not None else History()
 

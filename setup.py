@@ -10,6 +10,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         "click>=8.0.0",  # For CLI interface
+        "python-evdev>=1.0.0",  # For input device event handling
     ],
     entry_points={
         "console_scripts": [

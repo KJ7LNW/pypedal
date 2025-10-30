@@ -1,32 +1,22 @@
 """
 Pedal device event handling functionality
 """
-import struct
-import select
 import subprocess
 import click
-from typing import Tuple, BinaryIO, Optional, List, Dict
+from typing import Optional, List, Dict
+from evdev import InputDevice, ecodes
 from .pedal import PedalState, ButtonEvent, Button
 from .history import History
 from .config import Config, ButtonEventPattern
 
-# Event type mappings
-EV_TYPES = {
-    0: "EV_SYN",  # Synchronization event
-    1: "EV_KEY",  # Key/Button event
-    4: "EV_MSC"   # Miscellaneous event
-}
-
 class DeviceHandler:
     """Handles reading and processing pedal device events"""
-    EVENT_SIZE = 24  # struct input_event size
-    EVENT_FORMAT = 'llHHI'  # struct input_event format
 
     def __init__(self, device_path: str, key_codes: Dict[int, Button], config: Config = None,
                  quiet: bool = False, history: History = None, pedal_state: PedalState = None):
         """
         Initialize device handler
-        
+
         Args:
             device_path: Path to input device
             key_codes: Mapping of system key codes to button numbers
@@ -39,7 +29,7 @@ class DeviceHandler:
         self.key_codes = key_codes
         self.config = config
         self.quiet = quiet
-        
+
         # Use provided shared state or create new one
         if pedal_state is not None:
             self.pedal_state = pedal_state
@@ -112,30 +102,33 @@ class DeviceHandler:
 
         return matching_patterns
 
-    def process_event(self, event_data: bytes) -> None:
-        """Process a single event from the pedal device"""
-        if not event_data:
-            return
+    def process_event(self, event) -> None:
+        """
+        Process a single event from the pedal device
 
-        (tv_sec, tv_usec, type, code, value) = struct.unpack(self.EVENT_FORMAT, event_data)
+        Args:
+            event: evdev.InputEvent object
+        """
+        if event is None:
+            return
 
         # Skip non-key events
-        if type != 1:  # Not a key event
+        if event.type != ecodes.EV_KEY:
             return
 
-        button = self.key_codes.get(code)
+        button = self.key_codes.get(event.code)
         if button is None:
-            click.secho(f"  Error: Unknown button code: {code}", fg="red", err=True)
+            click.secho(f"  Error: Unknown button code: {event.code}", fg="red", err=True)
             return
 
-        event = ButtonEvent.BUTTON_DOWN if value == 1 else ButtonEvent.BUTTON_UP
+        button_event = ButtonEvent.BUTTON_DOWN if event.value == 1 else ButtonEvent.BUTTON_UP
 
         # Update internal button state tracking
-        self.pedal_state.update(button, event)
+        self.pedal_state.update(button, button_event)
 
         # Record event in history for pattern matching
-        entry = self.history.add_entry(button, event, self.pedal_state.get_state())
-        
+        entry = self.history.add_entry(button, button_event, self.pedal_state.get_state())
+
         # Display current history
         if not self.quiet:
             self.history.display_all()
@@ -160,15 +153,11 @@ class DeviceHandler:
     def read_events(self) -> None:
         """Read and process events from the pedal device"""
         try:
-            with open(self.device_path, 'rb', buffering=0) as dev:
+            with InputDevice(self.device_path) as device:
                 while True:
-                    # Use select to implement a timeout and check for interrupts
-                    ready, _, _ = select.select([dev], [], [], 0.1)
-                    if not ready:
-                        continue
-
-                    event = dev.read(self.EVENT_SIZE)
-                    self.process_event(event)
+                    event = device.read_one()
+                    if event is not None:
+                        self.process_event(event)
 
         except FileNotFoundError:
             raise

@@ -71,7 +71,7 @@ Note: Release-only events (^) must have corresponding press events (v).
         config_handler.dump_structure()
 
     # Get configured devices
-    devices = [(path, codes) for path, codes in config_handler.devices.items()]
+    devices = [(path, codes) for path, (codes, _shared) in config_handler.devices.items()]
     if not devices:
         raise click.UsageError("No devices configured. Add device configs like: dev: /path/to/device [1,2,3]")
 

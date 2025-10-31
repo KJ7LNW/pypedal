@@ -24,6 +24,7 @@ class MultiDeviceHandler:
         self.handlers: List[DeviceHandler] = []
         self.device_map: Dict[str, DeviceHandler] = {}
         self.device_key_codes: Dict[str, Dict[int, Button]] = {}
+        self.device_shared: Dict[str, bool] = {}
         self.config = config
         self.history = History()
 
@@ -32,10 +33,12 @@ class MultiDeviceHandler:
         all_buttons = []
 
         for device_path, buttons in devices:
-            # Get key codes from config
-            device_key_codes = config.devices.get(device_path)
-            if not device_key_codes:
+            # Get key codes and shared flag from config
+            device_config = config.devices.get(device_path)
+            if not device_config:
                 raise ValueError(f"No key codes configured for device {device_path}")
+
+            device_key_codes, shared = device_config
 
             # Map system key codes to sequential button numbers
             key_codes = {}
@@ -45,21 +48,23 @@ class MultiDeviceHandler:
                 all_buttons.append(button)
                 next_button += 1
 
-            # Keep key_codes for handler creation after state init
+            # Keep key_codes and shared flag for handler creation after state init
             self.device_key_codes[device_path] = key_codes
+            self.device_shared[device_path] = shared
 
         # Create shared state with all buttons
         self.pedal_state = PedalState(all_buttons)
 
         # Now create handlers with shared state
         for device_path, _buttons in devices:
-            # Pass shared history, state and key_codes to each device handler
+            # Pass shared history, state, key_codes and shared flag to each device handler
             handler = DeviceHandler(
                 device_path,
                 key_codes=self.device_key_codes[device_path],
                 config=config,
                 history=self.history,
-                pedal_state=self.pedal_state
+                pedal_state=self.pedal_state,
+                shared=self.device_shared[device_path]
             )
             self.handlers.append(handler)
             self.device_map[device_path] = handler
@@ -70,6 +75,8 @@ class MultiDeviceHandler:
             devices = {}
             for handler in self.handlers:
                 dev = InputDevice(handler.device_path)
+                if not handler.shared:
+                    dev.grab()
                 devices[dev.fd] = (dev, handler)
 
             while devices:

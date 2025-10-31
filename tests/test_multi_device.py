@@ -15,8 +15,8 @@ def test_multi_device_init():
     config = Config()
     # Configure device key codes
     config.devices = {
-        "/dev/input/event0": [256, 257, 258],  # First device key codes
-        "/dev/input/event1": [259, 260, 261]   # Second device key codes
+        "/dev/input/event0": ([256, 257, 258], False),  # First device key codes
+        "/dev/input/event1": ([259, 260, 261], False)   # Second device key codes
     }
     devices = [
         ("/dev/input/event0", [1, 2, 3]),
@@ -43,8 +43,8 @@ def test_multi_device_read_events():
     config = Config()
     # Configure device key codes
     config.devices = {
-        "/dev/input/event0": [256, 257, 258],
-        "/dev/input/event1": [259, 260, 261]
+        "/dev/input/event0": ([256, 257, 258], False),
+        "/dev/input/event1": ([259, 260, 261], False)
     }
     devices = [
         ("/dev/input/event0", [1, 2, 3]),
@@ -81,8 +81,8 @@ def test_device_disconnection():
     config = Config()
     # Configure device key codes
     config.devices = {
-        "/dev/input/event0": [256, 257, 258],
-        "/dev/input/event1": [259, 260, 261]
+        "/dev/input/event0": ([256, 257, 258], False),
+        "/dev/input/event1": ([259, 260, 261], False)
     }
     devices = [
         ("/dev/input/event0", [1, 2, 3]),
@@ -118,8 +118,8 @@ def test_shared_history_across_devices():
     config = Config()
     # Configure device key codes
     config.devices = {
-        "/dev/input/event0": [256, 257, 258],
-        "/dev/input/event1": [259, 260, 261]
+        "/dev/input/event0": ([256, 257, 258], False),
+        "/dev/input/event1": ([259, 260, 261], False)
     }
     
     # Add patterns for individual and combined device buttons
@@ -219,8 +219,12 @@ dev: /dev/input/event1 [4, 5, 6]
         
         # Verify devices loaded
         assert len(config.devices) == 2
-        assert config.devices["/dev/input/event0"] == [1, 2, 3]
-        assert config.devices["/dev/input/event1"] == [4, 5, 6]
+        codes0, shared0 = config.devices["/dev/input/event0"]
+        assert codes0 == [1, 2, 3]
+        assert shared0 == False
+        codes1, shared1 = config.devices["/dev/input/event1"]
+        assert codes1 == [4, 5, 6]
+        assert shared1 == False
         
         # Verify patterns loaded
         assert len(config.patterns) == 4
@@ -245,8 +249,8 @@ def test_multi_device_button_events():
     config = Config()
     # Configure device key codes
     config.devices = {
-        "/dev/input/event0": [256, 257, 258],
-        "/dev/input/event1": [259, 260, 261]
+        "/dev/input/event0": ([256, 257, 258], False),
+        "/dev/input/event1": ([259, 260, 261], False)
     }
     
     # Add test patterns for different devices

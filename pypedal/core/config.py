@@ -69,7 +69,7 @@ class Config:
     """Handles configuration file parsing and storage for the pedal device"""
     def __init__(self, config_file: str = None):
         self.patterns: List[ButtonEventPattern] = []
-        self.devices: Dict[str, List[int]] = {}  # Maps device paths to key codes
+        self.devices: Dict[str, Tuple[List[int], bool]] = {}  # Maps device paths to (key codes, shared flag)
         if config_file and os.path.exists(config_file):
             self.load(config_file)
 
@@ -81,11 +81,12 @@ class Config:
 
     def load_device_config(self, line: str) -> bool:
         """Parse device configuration line if present"""
-        dev_match = re.match(r'^dev:\s*([^\s]+)\s*\[([\d,\s]+)\]', line)
+        dev_match = re.match(r'^dev:\s*([^\s]+)\s*\[([\d,\s]+)\](?:\s*\[shared\])?', line)
         if dev_match:
             device_path = dev_match.group(1)
             key_codes = [int(code.strip()) for code in dev_match.group(2).split(',')]
-            self.devices[device_path] = key_codes
+            shared = bool(re.search(r'\[shared\]', line))
+            self.devices[device_path] = (key_codes, shared)
             return True
         return False
 

@@ -13,7 +13,8 @@ class DeviceHandler:
     """Handles reading and processing pedal device events"""
 
     def __init__(self, device_path: str, key_codes: Dict[int, Button], config: Config = None,
-                 quiet: bool = False, history: History = None, pedal_state: PedalState = None):
+                 quiet: bool = False, history: History = None, pedal_state: PedalState = None,
+                 shared: bool = False):
         """
         Initialize device handler
 
@@ -24,11 +25,13 @@ class DeviceHandler:
             quiet: Suppress output
             history: Shared history for pattern matching
             pedal_state: Shared state for button tracking
+            shared: Allow other programs to see device events
         """
         self.device_path = device_path
         self.key_codes = key_codes
         self.config = config
         self.quiet = quiet
+        self.shared = shared
 
         # Use provided shared state or create new one
         if pedal_state is not None:
@@ -154,6 +157,9 @@ class DeviceHandler:
         """Read and process events from the pedal device"""
         try:
             with InputDevice(self.device_path) as device:
+                if not self.shared:
+                    device.grab()
+
                 while True:
                     event = device.read_one()
                     if event is not None:

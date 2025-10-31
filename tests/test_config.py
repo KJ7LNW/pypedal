@@ -22,7 +22,9 @@ def test_device_config_parsing():
     config.load_line("dev: /dev/input/event0 [1,2,3]")
     assert len(config.devices) == 1
     assert "/dev/input/event0" in config.devices
-    assert config.devices["/dev/input/event0"] == [1, 2, 3]
+    codes, shared = config.devices["/dev/input/event0"]
+    assert codes == [1, 2, 3]
+    assert shared == False
 
 def test_multiple_device_configs():
     """Test parsing multiple device configurations"""
@@ -30,8 +32,12 @@ def test_multiple_device_configs():
     config.load_line("dev: /dev/input/event0 [1,2,3]")
     config.load_line("dev: /dev/input/event1 [4,5,6]")
     assert len(config.devices) == 2
-    assert config.devices["/dev/input/event0"] == [1, 2, 3]
-    assert config.devices["/dev/input/event1"] == [4, 5, 6]
+    codes0, shared0 = config.devices["/dev/input/event0"]
+    assert codes0 == [1, 2, 3]
+    assert shared0 == False
+    codes1, shared1 = config.devices["/dev/input/event1"]
+    assert codes1 == [4, 5, 6]
+    assert shared1 == False
 
 def test_config_load(tmp_path):
     config_file = tmp_path / "test_config.conf"
@@ -49,7 +55,9 @@ def test_config_load(tmp_path):
     # Verify device configuration
     assert len(config.devices) == 1
     assert "/dev/input/event0" in config.devices
-    assert config.devices["/dev/input/event0"] == [1, 2, 3]
+    codes, shared = config.devices["/dev/input/event0"]
+    assert codes == [1, 2, 3]
+    assert shared == False
 
     # Verify patterns
     assert len(config.patterns) == 3  # Three pattern lines
@@ -89,8 +97,12 @@ def test_device_config(tmp_path):
     
     # Verify device configurations
     assert len(config.devices) == 2
-    assert config.devices["/dev/input/event0"] == [256, 257, 258]
-    assert config.devices["/dev/input/event1"] == [259, 260]
+    codes0, shared0 = config.devices["/dev/input/event0"]
+    assert codes0 == [256, 257, 258]
+    assert shared0 == False
+    codes1, shared1 = config.devices["/dev/input/event1"]
+    assert codes1 == [259, 260]
+    assert shared1 == False
 
     # Verify pattern parsing
     assert len(config.patterns) == 1

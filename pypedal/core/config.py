@@ -6,9 +6,54 @@ import re
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Dict
 from datetime import datetime
+from evdev import ecodes
 from .pedal import ButtonEvent, Button
 from .history import HistoryEntry
 from pprint import pprint
+
+@dataclass
+class EventMapping:
+    """Maps input event type/code/value to button number"""
+    event_type: int
+    event_code: int
+    event_value: int
+    button: Button
+    auto_release: bool = False
+
+@dataclass
+class DeviceConfig:
+    """Device configuration with all settings"""
+    path: str
+    mappings: List[EventMapping]
+    shared: bool = False
+
+    def get_key_code_map(self) -> Dict[Tuple[int, int, int], Tuple[Button, bool]]:
+        """
+        Build lookup dictionary for event processing
+
+        Returns:
+            Dictionary mapping (event_type, event_code, event_value) to (button, auto_release)
+        """
+        key_codes = {}
+        for mapping in self.mappings:
+            key = (mapping.event_type, mapping.event_code, mapping.event_value)
+            key_codes[key] = (mapping.button, mapping.auto_release)
+        return key_codes
+
+    def get_buttons(self) -> List[Button]:
+        """
+        Extract unique buttons from mappings
+
+        Returns:
+            List of unique Button objects configured for this device
+        """
+        seen = set()
+        buttons = []
+        for mapping in self.mappings:
+            if mapping.button not in seen:
+                buttons.append(mapping.button)
+                seen.add(mapping.button)
+        return buttons
 
 @dataclass
 class ButtonEventPatternElement:
@@ -69,7 +114,7 @@ class Config:
     """Handles configuration file parsing and storage for the pedal device"""
     def __init__(self, config_file: str = None):
         self.patterns: List[ButtonEventPattern] = []
-        self.devices: Dict[str, Tuple[List[int], bool]] = {}  # Maps device paths to (key codes, shared flag)
+        self.devices: List[DeviceConfig] = []
         if config_file and os.path.exists(config_file):
             self.load(config_file)
 
@@ -79,30 +124,113 @@ class Config:
     def __repr__(self) -> str:
         return str(self)
 
-    def load_device_config(self, line: str) -> bool:
-        """Parse device configuration line if present"""
-        dev_match = re.match(r'^dev:\s*([^\s]+)\s*\[([\d,\s]+)\](?:\s*\[shared\])?', line)
-        if dev_match:
-            device_path = dev_match.group(1)
-            key_codes = [int(code.strip()) for code in dev_match.group(2).split(',')]
-            shared = bool(re.search(r'\[shared\]', line))
-            self.devices[device_path] = (key_codes, shared)
-            return True
-        return False
+    def get_next_button_number(self) -> int:
+        """
+        Calculate next available button number from configured devices
+
+        Returns:
+            Next available button number (1 if no devices configured)
+        """
+        next_button = 1
+        for device_config in self.devices:
+            for button in device_config.get_buttons():
+                if button >= next_button:
+                    next_button = button + 1
+        return next_button
+
+    def load_device_config(self, line: str, next_button: int) -> Tuple[bool, int]:
+        """
+        Parse device configuration line if present
+
+        Args:
+            line: Configuration line to parse
+            next_button: Next available button number
+
+        Returns:
+            Tuple of (success, next_button) where success indicates if line was parsed
+        """
+        dev_match = re.match(r'^dev:\s*([^\s]+)\s*\[([^\]]+)\](?:\s*\[shared\])?', line)
+        if not dev_match:
+            return False, next_button
+
+        device_path = dev_match.group(1)
+        mappings_str = dev_match.group(2)
+        shared = bool(re.search(r'\[shared\]', line))
+
+        mappings = []
+
+        for part in mappings_str.split(','):
+            part = part.strip()
+            if not part:
+                continue
+
+            type_code_match = re.match(r'^(\w+|\d+)/(\w+|\d+)=(-?\d+)$', part)
+            if type_code_match:
+                type_str = type_code_match.group(1)
+                code_str = type_code_match.group(2)
+                value = int(type_code_match.group(3))
+
+                if type_str.isdigit():
+                    event_type = int(type_str)
+                else:
+                    event_type = getattr(ecodes, type_str, None)
+                    if event_type is None:
+                        continue
+
+                if code_str.isdigit():
+                    event_code = int(code_str)
+                else:
+                    event_code = getattr(ecodes, code_str, None)
+                    if event_code is None:
+                        continue
+
+                mappings.append(EventMapping(
+                    event_type=event_type,
+                    event_code=event_code,
+                    event_value=value,
+                    button=Button(next_button),
+                    auto_release=True
+                ))
+                next_button += 1
+            else:
+                key_code = int(part)
+                button = Button(next_button)
+
+                mappings.append(EventMapping(
+                    event_type=ecodes.EV_KEY,
+                    event_code=key_code,
+                    event_value=1,
+                    button=button,
+                    auto_release=False
+                ))
+                mappings.append(EventMapping(
+                    event_type=ecodes.EV_KEY,
+                    event_code=key_code,
+                    event_value=0,
+                    button=button,
+                    auto_release=False
+                ))
+                next_button += 1
+
+        self.devices.append(DeviceConfig(
+            path=device_path,
+            mappings=mappings,
+            shared=shared
+        ))
+        return True, next_button
 
     def load_line(self, line: str, line_number: int = 0) -> None:
         """
         Load a single configuration line
-        
+
         Handles formats:
         1. "dev: /dev/input/eventX [code1,code2,...]" - Device configuration
         2. "1v,2: command" - Explicit multi-button sequence
         3. "1: command" - Implicit single button press-release
         4. "2v,2^: command" - Explicit press-release sequence
         """
-
-        # Try to parse as device config first
-        if self.load_device_config(line):
+        parsed, _ = self.load_device_config(line, self.get_next_button_number())
+        if parsed:
             return
 
         # Split pattern and command

@@ -7,20 +7,25 @@ from pypedal.core.pedal import ButtonEvent
 from pypedal.core.config import Config, ButtonEventPattern, ButtonEventPatternElement
 
 def create_event(type_, code, value):
-    """Create a mock event"""
-    return (0).to_bytes(8, 'little') + \
-           (0).to_bytes(8, 'little') + \
-           type_.to_bytes(2, 'little') + \
-           code.to_bytes(2, 'little') + \
-           value.to_bytes(4, 'little')
+    """Create a mock InputEvent object"""
+    from unittest.mock import MagicMock
+    event = MagicMock()
+    event.type = type_
+    event.code = code
+    event.value = value
+    return event
 
 def test_device_handler_initialization():
     key_codes = {
-        256: Button(1),  # Left pedal button
-        257: Button(2),  # Middle pedal button
-        258: Button(3)   # Right pedal button
+        (1, 256, 1): (Button(1), False),
+        (1, 256, 0): (Button(1), False),
+        (1, 257, 1): (Button(2), False),
+        (1, 257, 0): (Button(2), False),
+        (1, 258, 1): (Button(3), False),
+        (1, 258, 0): (Button(3), False)
     }
-    handler = DeviceHandler('/dev/null', key_codes=key_codes)
+    buttons = [Button(1), Button(2), Button(3)]
+    handler = DeviceHandler('/dev/null', key_codes=key_codes, buttons=buttons)
     assert handler.device_path == '/dev/null'
     assert handler.config is None
     assert handler.quiet is False
@@ -28,11 +33,15 @@ def test_device_handler_initialization():
 
 def test_process_event():
     key_codes = {
-        256: Button(1),  # Left pedal button
-        257: Button(2),  # Middle pedal button
-        258: Button(3)   # Right pedal button
+        (1, 256, 1): (Button(1), False),
+        (1, 256, 0): (Button(1), False),
+        (1, 257, 1): (Button(2), False),
+        (1, 257, 0): (Button(2), False),
+        (1, 258, 1): (Button(3), False),
+        (1, 258, 0): (Button(3), False)
     }
-    handler = DeviceHandler('/dev/null', key_codes=key_codes, quiet=True)
+    buttons = [Button(1), Button(2), Button(3)]
+    handler = DeviceHandler('/dev/null', key_codes=key_codes, buttons=buttons, quiet=True)
 
     # Create a mock event (button 1 press)
     event = create_event(1, 256, 1)
@@ -46,44 +55,46 @@ def test_process_event():
 
 def test_read_events():
     key_codes = {
-        256: Button(1),  # Left pedal button
-        257: Button(2),  # Middle pedal button
-        258: Button(3)   # Right pedal button
+        (1, 256, 1): (Button(1), False),
+        (1, 256, 0): (Button(1), False),
+        (1, 257, 1): (Button(2), False),
+        (1, 257, 0): (Button(2), False),
+        (1, 258, 1): (Button(3), False),
+        (1, 258, 0): (Button(3), False)
     }
-    handler = DeviceHandler('/dev/null', key_codes=key_codes, quiet=True)
+    buttons = [Button(1), Button(2), Button(3)]
+    handler = DeviceHandler('/dev/null', key_codes=key_codes, buttons=buttons, quiet=True)
 
-    # Mock the open function to return a file-like object
-    mock_file = Mock()
-    mock_file.read.side_effect = [
-        create_event(1, 256, 1),  # Button 1 press
-        create_event(1, 256, 0),  # Button 1 release
-        KeyboardInterrupt,  # Simulate Ctrl+C to stop the loop
+    mock_device = Mock()
+    mock_device.read_one.side_effect = [
+        create_event(1, 256, 1),
+        create_event(1, 256, 0),
+        KeyboardInterrupt,
     ]
+    mock_device.__enter__ = Mock(return_value=mock_device)
+    mock_device.__exit__ = Mock(return_value=None)
 
-    # Add __enter__ and __exit__ methods to mock_file
-    mock_file.__enter__ = Mock(return_value=mock_file)
-    mock_file.__exit__ = Mock(return_value=None)
-
-    with patch('builtins.open', return_value=mock_file), \
-         patch('select.select', return_value=([mock_file], [], [])):
+    with patch('pypedal.core.device.InputDevice', return_value=mock_device):
         try:
             handler.read_events()
         except KeyboardInterrupt:
-            pass  # Expected behavior, do nothing
+            pass
 
-    # History should be empty since all buttons are released
     assert len(handler.history.entries) == 0
-    # and state should reflect the last event
     assert handler.pedal_state.get_state()[Button(1)] == ButtonEvent.BUTTON_UP
 
 def test_find_matching_patterns_empty():
     """Test find_matching_patterns with empty history or config"""
     key_codes = {
-        256: Button(1),  # Left pedal button
-        257: Button(2),  # Middle pedal button
-        258: Button(3)   # Right pedal button
+        (1, 256, 1): (Button(1), False),
+        (1, 256, 0): (Button(1), False),
+        (1, 257, 1): (Button(2), False),
+        (1, 257, 0): (Button(2), False),
+        (1, 258, 1): (Button(3), False),
+        (1, 258, 0): (Button(3), False)
     }
-    handler = DeviceHandler('/dev/null', key_codes=key_codes)
+    buttons = [Button(1), Button(2), Button(3)]
+    handler = DeviceHandler('/dev/null', key_codes=key_codes, buttons=buttons)
     assert handler.find_matching_patterns() == []
 
     handler.config = Config()
@@ -92,11 +103,15 @@ def test_find_matching_patterns_empty():
 def test_find_matching_patterns_timing():
     """Test find_matching_patterns with timing constraints"""
     key_codes = {
-        256: Button(1),  # Left pedal button
-        257: Button(2),  # Middle pedal button
-        258: Button(3)   # Right pedal button
+        (1, 256, 1): (Button(1), False),
+        (1, 256, 0): (Button(1), False),
+        (1, 257, 1): (Button(2), False),
+        (1, 257, 0): (Button(2), False),
+        (1, 258, 1): (Button(3), False),
+        (1, 258, 0): (Button(3), False)
     }
-    handler = DeviceHandler('/dev/null', key_codes=key_codes)
+    buttons = [Button(1), Button(2), Button(3)]
+    handler = DeviceHandler('/dev/null', key_codes=key_codes, buttons=buttons)
     handler.config = Config()
 
     # Create a pattern with 1 second time constraint
@@ -132,11 +147,15 @@ def test_find_matching_patterns_timing():
 def test_find_matching_patterns_full():
     """Test find_matching_patterns with full pattern matches"""
     key_codes = {
-        256: Button(1),  # Left pedal button
-        257: Button(2),  # Middle pedal button
-        258: Button(3)   # Right pedal button
+        (1, 256, 1): (Button(1), False),
+        (1, 256, 0): (Button(1), False),
+        (1, 257, 1): (Button(2), False),
+        (1, 257, 0): (Button(2), False),
+        (1, 258, 1): (Button(3), False),
+        (1, 258, 0): (Button(3), False)
     }
-    handler = DeviceHandler('/dev/null', key_codes=key_codes)
+    buttons = [Button(1), Button(2), Button(3)]
+    handler = DeviceHandler('/dev/null', key_codes=key_codes, buttons=buttons)
     handler.config = Config()
 
     # Create a pattern: Button1 down, Button2 down

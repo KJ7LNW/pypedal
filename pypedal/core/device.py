@@ -12,15 +12,16 @@ from .config import Config, ButtonEventPattern
 class DeviceHandler:
     """Handles reading and processing pedal device events"""
 
-    def __init__(self, device_path: str, key_codes: Dict[int, Button], config: Config = None,
-                 quiet: bool = False, history: History = None, pedal_state: PedalState = None,
-                 shared: bool = False):
+    def __init__(self, device_path: str, key_codes: Dict, buttons: List[Button],
+                 config: Config = None, quiet: bool = False, history: History = None,
+                 pedal_state: PedalState = None, shared: bool = False):
         """
         Initialize device handler
 
         Args:
             device_path: Path to input device
-            key_codes: Mapping of system key codes to button numbers
+            key_codes: Mapping of (type,code,value) tuples to (button,auto_release) tuples
+            buttons: List of Button objects for this device
             config: Button pattern configuration
             quiet: Suppress output
             history: Shared history for pattern matching
@@ -33,12 +34,11 @@ class DeviceHandler:
         self.quiet = quiet
         self.shared = shared
 
-        # Use provided shared state or create new one
         if pedal_state is not None:
             self.pedal_state = pedal_state
         else:
-            self.pedal_state = PedalState(buttons=list(key_codes.values()))
-        # Use provided history or create new one
+            self.pedal_state = PedalState(buttons=buttons)
+
         self.history = history if history is not None else History()
 
     def find_matching_patterns(self) -> List[ButtonEventPattern]:
@@ -115,22 +115,30 @@ class DeviceHandler:
         if event is None:
             return
 
-        # Skip non-key events
-        if event.type != ecodes.EV_KEY:
+        # Look up button using (type, code, value) tuple
+        key = (event.type, event.code, event.value)
+        mapping = self.key_codes.get(key)
+        if mapping is None:
             return
 
-        button = self.key_codes.get(event.code)
-        if button is None:
-            click.secho(f"  Error: Unknown button code: {event.code}", fg="red", err=True)
+        button, auto_release = mapping
+
+        if auto_release:
+            self.pedal_state.update(button, ButtonEvent.BUTTON_DOWN)
+            self.history.add_entry(button, ButtonEvent.BUTTON_DOWN, self.pedal_state.get_state())
+            self.pedal_state.update(button, ButtonEvent.BUTTON_UP)
+            self.history.add_entry(button, ButtonEvent.BUTTON_UP, self.pedal_state.get_state())
+        elif event.value == 1:
+            button_event = ButtonEvent.BUTTON_DOWN
+            self.pedal_state.update(button, button_event)
+            self.history.add_entry(button, button_event, self.pedal_state.get_state())
+        elif event.value == 0:
+            button_event = ButtonEvent.BUTTON_UP
+            self.pedal_state.update(button, button_event)
+            self.history.add_entry(button, button_event, self.pedal_state.get_state())
+        else:
+            click.secho(f"  Warning: Unexpected event value {event.value} for button {button}", fg="yellow", err=True)
             return
-
-        button_event = ButtonEvent.BUTTON_DOWN if event.value == 1 else ButtonEvent.BUTTON_UP
-
-        # Update internal button state tracking
-        self.pedal_state.update(button, button_event)
-
-        # Record event in history for pattern matching
-        entry = self.history.add_entry(button, button_event, self.pedal_state.get_state())
 
         # Display current history
         if not self.quiet:

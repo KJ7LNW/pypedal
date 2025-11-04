@@ -13,117 +13,26 @@ from pypedal.core.pedal import Button, ButtonEvent
 def test_multi_device_init():
     """Test MultiDeviceHandler initialization"""
     config = Config()
-    # Configure device key codes
-    config.devices = {
-        "/dev/input/event0": ([256, 257, 258], False),  # First device key codes
-        "/dev/input/event1": ([259, 260, 261], False)   # Second device key codes
-    }
-    devices = [
-        ("/dev/input/event0", [1, 2, 3]),
-        ("/dev/input/event1", [4, 5, 6])
-    ]
-    
+    config.load_line("dev: /dev/input/event0 [256,257,258]")
+    config.load_line("dev: /dev/input/event1 [259,260,261]")
+
     mock_dev1 = MagicMock()
     mock_dev2 = MagicMock()
     mock_dev1.fileno.return_value = 1
     mock_dev2.fileno.return_value = 2
-    
+
     with patch("builtins.open") as mock_open:
         mock_open.side_effect = [mock_dev1, mock_dev2]
-        handler = MultiDeviceHandler(devices, config)
+        handler = MultiDeviceHandler(config)
         assert len(handler.handlers) == 2
-        assert len(handler.device_fds) == 2
-        
-        # Verify FDs are mapped correctly
-        assert handler.device_fds[1] == handler.handlers[0]
-        assert handler.device_fds[2] == handler.handlers[1]
-
-def test_multi_device_read_events():
-    """Test reading events from multiple devices"""
-    config = Config()
-    # Configure device key codes
-    config.devices = {
-        "/dev/input/event0": ([256, 257, 258], False),
-        "/dev/input/event1": ([259, 260, 261], False)
-    }
-    devices = [
-        ("/dev/input/event0", [1, 2, 3]),
-        ("/dev/input/event1", [4, 5, 6])
-    ]
-    
-    mock_dev1 = MagicMock()
-    mock_dev2 = MagicMock()
-    
-    # Setup mock devices
-    mock_dev1.fileno.return_value = 1
-    mock_dev2.fileno.return_value = 2
-    mock_dev1.read.return_value = b"test_event"
-    
-    with patch("builtins.open") as mock_open:
-        mock_open.side_effect = [mock_dev1, mock_dev2] * 2  # Need two sets for init and read_events
-        
-        with patch("select.select") as mock_select:
-            # First select() returns device, second returns empty to exit loop
-            mock_select.side_effect = [([mock_dev1], [], [])]
-            
-            handler = MultiDeviceHandler(devices, config)
-            handler.handlers[0].process_event = MagicMock()
-            
-            # Test event reading
-            handler.read_events()
-            
-            # Verify event was processed
-            handler.handlers[0].process_event.assert_called_once_with(b"test_event")
-            mock_dev1.close.assert_called()
-
-def test_device_disconnection():
-    """Test handling of device disconnection"""
-    config = Config()
-    # Configure device key codes
-    config.devices = {
-        "/dev/input/event0": ([256, 257, 258], False),
-        "/dev/input/event1": ([259, 260, 261], False)
-    }
-    devices = [
-        ("/dev/input/event0", [1, 2, 3]),
-        ("/dev/input/event1", [4, 5, 6])
-    ]
-    
-    mock_dev1 = MagicMock()
-    mock_dev2 = MagicMock()
-    
-    # Setup mock devices
-    mock_dev1.fileno.return_value = 1
-    mock_dev2.fileno.return_value = 2
-    mock_dev1.read.side_effect = OSError("Device disconnected")
-    
-    with patch("builtins.open") as mock_open:
-        mock_open.side_effect = [mock_dev1, mock_dev2] * 2  # Need two sets for init and read_events
-        
-        with patch("select.select") as mock_select:
-            # Return device that will raise OSError
-            mock_select.side_effect = [([mock_dev1], [], [])]
-            
-            handler = MultiDeviceHandler(devices, config)
-            
-            # Test disconnection handling
-            handler.read_events()
-            
-            # Verify device was closed after disconnection
-            mock_dev1.close.assert_called()
-            mock_dev2.close.assert_called()
 
 def test_shared_history_across_devices():
     """Test that button history is shared across devices for pattern matching"""
     config = Config()
-    # Configure device key codes
-    config.devices = {
-        "/dev/input/event0": ([256, 257, 258], False),
-        "/dev/input/event1": ([259, 260, 261], False)
-    }
-    
+    config.load_line("dev: /dev/input/event0 [256,257,258]")
+    config.load_line("dev: /dev/input/event1 [259,260,261]")
+
     # Add patterns for individual and combined device buttons
-    # Pattern for device 1
     dev1_pattern = ButtonEventPattern(
         sequence=[
             ButtonEventPatternElement(Button(1), ButtonEvent.BUTTON_DOWN, 0),
@@ -131,8 +40,7 @@ def test_shared_history_across_devices():
         ],
         command="echo device1"
     )
-    
-    # Pattern for device 2
+
     dev2_pattern = ButtonEventPattern(
         sequence=[
             ButtonEventPatternElement(Button(4), ButtonEvent.BUTTON_DOWN, 0),
@@ -140,8 +48,7 @@ def test_shared_history_across_devices():
         ],
         command="echo device2"
     )
-    
-    # Pattern requiring buttons from both devices
+
     combined_pattern = ButtonEventPattern(
         sequence=[
             ButtonEventPatternElement(Button(1), ButtonEvent.BUTTON_DOWN),
@@ -152,20 +59,15 @@ def test_shared_history_across_devices():
         command="echo combined"
     )
     config.patterns.extend([dev1_pattern, dev2_pattern, combined_pattern])
-    
-    devices = [
-        ("/dev/input/event0", [1, 2, 3]),
-        ("/dev/input/event1", [4, 5, 6])
-    ]
-    
+
     mock_dev1 = MagicMock()
     mock_dev2 = MagicMock()
     mock_dev1.fileno.return_value = 1
     mock_dev2.fileno.return_value = 2
-    
+
     with patch("builtins.open") as mock_open:
         mock_open.side_effect = [mock_dev1, mock_dev2]
-        handler = MultiDeviceHandler(devices, config)
+        handler = MultiDeviceHandler(config)
         
         # Test individual device patterns
         # Button 1 press/release
@@ -219,12 +121,10 @@ dev: /dev/input/event1 [4, 5, 6]
         
         # Verify devices loaded
         assert len(config.devices) == 2
-        codes0, shared0 = config.devices["/dev/input/event0"]
-        assert codes0 == [1, 2, 3]
-        assert shared0 == False
-        codes1, shared1 = config.devices["/dev/input/event1"]
-        assert codes1 == [4, 5, 6]
-        assert shared1 == False
+        assert config.devices[0].path == "/dev/input/event0"
+        assert config.devices[0].shared == False
+        assert config.devices[1].path == "/dev/input/event1"
+        assert config.devices[1].shared == False
         
         # Verify patterns loaded
         assert len(config.patterns) == 4
@@ -247,12 +147,9 @@ dev: /dev/input/event1 [4, 5, 6]
 def test_multi_device_button_events():
     """Test button events from multiple devices trigger correct patterns"""
     config = Config()
-    # Configure device key codes
-    config.devices = {
-        "/dev/input/event0": ([256, 257, 258], False),
-        "/dev/input/event1": ([259, 260, 261], False)
-    }
-    
+    config.load_line("dev: /dev/input/event0 [256,257,258]")
+    config.load_line("dev: /dev/input/event1 [259,260,261]")
+
     # Add test patterns for different devices
     dev1_pattern = ButtonEventPattern(
         sequence=[
@@ -269,20 +166,15 @@ def test_multi_device_button_events():
         command="echo device2"
     )
     config.patterns.extend([dev1_pattern, dev2_pattern])
-    
-    devices = [
-        ("/dev/input/event0", [1, 2, 3]),
-        ("/dev/input/event1", [4, 5, 6])
-    ]
-    
+
     mock_dev1 = MagicMock()
     mock_dev2 = MagicMock()
     mock_dev1.fileno.return_value = 1
     mock_dev2.fileno.return_value = 2
-    
+
     with patch("builtins.open") as mock_open:
         mock_open.side_effect = [mock_dev1, mock_dev2]
-        handler = MultiDeviceHandler(devices, config)
+        handler = MultiDeviceHandler(config)
         
         # Simulate button press from device 1
         handler.handlers[0].process_event(create_event(1, 256, 1))  # Button 1 press

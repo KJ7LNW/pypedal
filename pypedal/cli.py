@@ -13,10 +13,11 @@ def handle_interrupt(signum, frame):
 @click.command(context_settings=dict(help_option_names=['-h', '--help']))
 @click.version_option()
 @click.option('--config', '-c', type=click.Path(exists=True, dir_okay=False),
-              help='Config file with device and pattern mappings', required=True)
+              help='Config file with device and pattern mappings')
 @click.option('--quiet', '-q', is_flag=True, help='Suppress additional output')
 @click.option('--debug', is_flag=True, help='Show config structure after loading')
-def main(config, quiet, debug):
+@click.pass_context
+def main(ctx, config, quiet, debug):
     """pypedal - A Python-based command line tool for multiple USB foot pedals.
 
 The configuration file supports the following patterns for the pedal's buttons:
@@ -53,11 +54,10 @@ Example config file:
 Note: Release-only events (^) must have corresponding press events (v).
       For example, '2^' alone is not valid without a matching '2v' event.
       See the mouse button control example above."""
-    # Show help when no arguments provided
-    if len(sys.argv) == 1:
-        ctx = click.get_current_context()
+
+    if config is None:
         click.echo(ctx.get_help())
-        ctx.exit()
+        ctx.exit(0)
 
     # Set up signal handlers
     signal.signal(signal.SIGINT, handle_interrupt)
@@ -70,14 +70,18 @@ Note: Release-only events (^) must have corresponding press events (v).
         click.echo("Configuration structure:")
         config_handler.dump_structure()
 
-    # Get configured devices
-    devices = [(path, codes) for path, (codes, _shared) in config_handler.devices.items()]
-    if not devices:
+    # Verify devices configured
+    if not config_handler.devices:
         raise click.UsageError("No devices configured. Add device configs like: dev: /path/to/device [1,2,3]")
 
     # Create and run multi-device handler
-    handler = MultiDeviceHandler(devices, config_handler)
-    handler.read_events()
+    try:
+        handler = MultiDeviceHandler(config_handler)
+        handler.read_events()
+    except FileNotFoundError as e:
+        raise click.ClickException(str(e))
+    except PermissionError as e:
+        raise click.ClickException(str(e))
 
 if __name__ == '__main__':
     main()

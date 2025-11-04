@@ -3,14 +3,7 @@ import pytest
 from unittest.mock import Mock, patch
 from pypedal.core.device import DeviceHandler, Button
 from pypedal.core.config import Config
-
-def create_event(type_, code, value):
-    """Create a mock event"""
-    return (0).to_bytes(8, 'little') + \
-           (0).to_bytes(8, 'little') + \
-           type_.to_bytes(2, 'little') + \
-           code.to_bytes(2, 'little') + \
-           value.to_bytes(4, 'little')
+from tests.test_device import create_event
 
 def run_button_sequence(config_lines, button_events, expected_commands):
     """
@@ -31,14 +24,21 @@ def run_button_sequence(config_lines, button_events, expected_commands):
     
     # Default key code mappings for tests
     key_codes = {
-        256: Button(1),  # Left pedal button
-        257: Button(2),  # Middle pedal button
-        258: Button(3),  # Right pedal button
-        259: Button(4),  # Second device button 1
-        260: Button(5),  # Second device button 2
-        261: Button(6)   # Second device button 3
+        (1, 256, 1): (Button(1), False),
+        (1, 256, 0): (Button(1), False),
+        (1, 257, 1): (Button(2), False),
+        (1, 257, 0): (Button(2), False),
+        (1, 258, 1): (Button(3), False),
+        (1, 258, 0): (Button(3), False),
+        (1, 259, 1): (Button(4), False),
+        (1, 259, 0): (Button(4), False),
+        (1, 260, 1): (Button(5), False),
+        (1, 260, 0): (Button(5), False),
+        (1, 261, 1): (Button(6), False),
+        (1, 261, 0): (Button(6), False)
     }
-    handler = DeviceHandler('/dev/null', key_codes=key_codes, config=config, quiet=True)
+    buttons = [Button(1), Button(2), Button(3), Button(4), Button(5), Button(6)]
+    handler = DeviceHandler('/dev/null', key_codes=key_codes, buttons=buttons, config=config, quiet=True)
 
     # Create events from button sequence
     events = [create_event(1, code, value) for code, value in button_events]

@@ -2,10 +2,20 @@
 Tests for pypedal CLI interface
 """
 import os
+import signal
 import tempfile
 from unittest.mock import patch
+import pytest
 from click.testing import CliRunner
 from pypedal.cli import main
+
+@pytest.fixture(autouse=True)
+def restore_signal_handlers():
+    sigint_handler = signal.getsignal(signal.SIGINT)
+    sigterm_handler = signal.getsignal(signal.SIGTERM)
+    yield
+    signal.signal(signal.SIGINT, sigint_handler)
+    signal.signal(signal.SIGTERM, sigterm_handler)
 
 def test_version():
     """Test version display"""
@@ -22,13 +32,12 @@ def test_command_with_config():
 
     try:
         runner = CliRunner()
-        with patch('pypedal.core.multi_device.MultiDeviceHandler.__init__', return_value=None) as mock_init:
-            with patch('pypedal.core.multi_device.MultiDeviceHandler.read_events') as mock_read:
-                mock_read.side_effect = FileNotFoundError("Device not found")
-                result = runner.invoke(main, ['--config', config_path])
-                assert result.exit_code != 0
-                assert isinstance(result.exception, FileNotFoundError)
-            assert 'Device not found' in str(result.exception)
+        with patch('pypedal.cli.MultiDeviceHandler') as MockHandler:
+            mock_instance = MockHandler.return_value
+            mock_instance.read_events.side_effect = FileNotFoundError("Device not found")
+            result = runner.invoke(main, ['--config', config_path])
+            assert result.exit_code != 0
+            assert 'Device not found' in result.output
     finally:
         os.unlink(config_path)
 
@@ -36,8 +45,8 @@ def test_command_no_config():
     """Test missing required config file"""
     runner = CliRunner()
     result = runner.invoke(main, [])
-    assert result.exit_code != 0
-    assert 'Missing option' in result.output
+    assert result.exit_code == 0
+    assert 'Usage:' in result.output
     assert '--config' in result.output
 
 def test_command_quiet_mode():
@@ -48,13 +57,13 @@ def test_command_quiet_mode():
 
     try:
         runner = CliRunner()
-        with patch('pypedal.core.multi_device.MultiDeviceHandler.read_events') as mock_read:
-            mock_read.side_effect = FileNotFoundError("Device not found")
-            # Test with quiet flag
+        with patch('pypedal.cli.MultiDeviceHandler') as MockHandler:
+            mock_instance = MockHandler.return_value
+            mock_instance.read_events.side_effect = FileNotFoundError("Device not found")
             result = runner.invoke(main, ['--quiet', '--config', config_path])
             assert result.exit_code != 0
+            assert 'Device not found' in result.output
             assert 'Using configuration file:' not in result.output
-            # Test with short flag
             result = runner.invoke(main, ['-q', '--config', config_path])
             assert result.exit_code != 0
             assert 'Using configuration file:' not in result.output
@@ -69,11 +78,12 @@ def test_command_permission_error():
 
     try:
         runner = CliRunner()
-        with patch('pypedal.core.multi_device.MultiDeviceHandler.read_events') as mock_read:
-            mock_read.side_effect = PermissionError("Permission denied")
+        with patch('pypedal.cli.MultiDeviceHandler') as MockHandler:
+            mock_instance = MockHandler.return_value
+            mock_instance.read_events.side_effect = PermissionError("Permission denied")
             result = runner.invoke(main, ['--config', config_path])
             assert result.exit_code != 0
-            assert 'Permission denied' in str(result.exception)
+            assert 'Permission denied' in result.output
     finally:
         os.unlink(config_path)
 

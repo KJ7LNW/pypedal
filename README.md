@@ -21,6 +21,12 @@ pypedal tracks the state of each pedal button and recognizes various patterns:
 - Press-and-hold patterns (e.g., `2v,2^`)
 - Time-constrained combinations (`1v,2 < T`)
 
+### Multi-Device Support
+- Configure multiple input devices with sequential button numbering
+- Shared pedal state across all devices for cross-device patterns
+- Optional shared mode to allow other programs concurrent access
+- Supports keyboards, mice, foot pedals, and any evdev device
+
 ### State Management
 The tool maintains precise state tracking:
 - Current button states (pressed/released)
@@ -35,32 +41,112 @@ When patterns are recognized, pypedal executes the configured commands, supporti
 - System commands
 - Custom scripts
 
+## Device Configuration
+
+Configure input devices using the `dev:` directive to map event codes to button numbers.
+
+### Basic Syntax
+
+```bash
+dev: /path/to/device [code1,code2,code3]
+```
+
+Buttons are numbered sequentially across all devices in configuration order.
+
+### Event Code Formats
+
+Simple key codes (EV_KEY events):
+```bash
+dev: /dev/input/event0 [256,257,258]
+```
+
+Event type/code/value for specific events:
+```bash
+dev: /dev/input/event0 [273,EV_REL/REL_WHEEL=-1,EV_REL/REL_WHEEL=1]
+```
+
+Numeric or symbolic names work for both type and code:
+```bash
+dev: /dev/input/event0 [1/272=1,EV_KEY/BTN_LEFT=1]
+```
+
+### Auto-Release Behavior
+
+Relative axis events (REL_WHEEL, REL_X, etc.) automatically generate press and release:
+```bash
+# Wheel down event generates button 11 press+release
+dev: /dev/input/mouse [EV_REL/REL_WHEEL=-1]
+```
+
+### Shared Device Access
+
+Allow other programs to receive events from the device:
+```bash
+dev: /dev/input/event0 [256,257,258] [shared]
+```
+
+Without `[shared]`, pypedal exclusively grabs the device.
+
+### Multi-Device Setup
+
+```bash
+# First pedal: buttons 1,2,3
+dev: /dev/input/by-path/pci-0000:75:00.0-usb-0:1.4:1.0-event [256,257,258]
+
+# Second pedal: buttons 4,5,6
+dev: /dev/input/by-path/pci-0000:74:00.3-usb-0:2:1.0-event [256,257,258]
+
+# Mouse wheel: buttons 7,8
+dev: /dev/input/by-id/usb-Mouse-event-mouse [EV_REL/REL_WHEEL=-1,EV_REL/REL_WHEEL=1]
+```
+
 ## Configuration
 
-The configuration file defines button patterns and their associated commands. Here's a comprehensive example showing all supported patterns:
+The configuration file defines button patterns and their associated commands.
+
+### Basic Patterns
 
 ```bash
 # Single button press (v) / release (^)
-1v: xdotool click 1          # Left click (v) on button press
-2^: xdotool key space        # Space on button release (^)
+1v: xdotool click 1          # Left click on button press
+2^: xdotool key space        # Space on button release
 
 # Multi-button combinations
 1v,2: xdotool key ctrl+c     # Copy when holding 1 and pressing 2
 1v,3: xdotool key ctrl+v     # Paste when holding 1 and pressing 3
 
-# Space/Right-click combinations
-3v,1: xdotool key space      # Space when holding 3 and pressing 1
-3v,2: xdotool click 3        # Right click when holding 3 and pressing 2
-
 # Single button actions
 1: xdotool click 2           # Middle click on button 1 press/release
 3: xdotool key Return        # Enter key on button 3 press/release
-3v,3^: foo                   # slightly different from just `3`, see `max_use`
 
 # Mouse button control
 2v: xdotool mousedown 1      # Hold left mouse button
 2v,2^: xdotool mouseup 1     # Release left mouse button
-2^: false                    # not possible, can't have up without down.
+```
+
+### Multi-Device Patterns
+
+```bash
+# Configure three foot pedals
+dev: /dev/input/by-path/pci-0000:75:00.0-usb-0:1.4:1.0-event [256,257,258]
+dev: /dev/input/by-path/pci-0000:74:00.3-usb-0:2:1.0-event [256,257,258]
+dev: /dev/input/by-path/pci-0000:0e:00.0-usb-0:3:1.0-event [256,257,258]
+
+# Buttons 1-9 from three pedals
+4: xdotool key super+Left    # Button 4 from second pedal
+6: xdotool key super+Right   # Button 6 from second pedal
+1v,5: xdotool key super+Down # Cross-device: button 1 + button 5
+```
+
+### Mouse Wheel Events
+
+```bash
+# Configure mouse with wheel events
+dev: /dev/input/by-id/usb-Mouse-event-mouse [273,EV_REL/REL_WHEEL=-1,EV_REL/REL_WHEEL=1]
+
+# Buttons 10 (click), 11 (wheel down), 12 (wheel up)
+11: xdotool click --repeat 2 5  # Wheel down scrolls down
+12: xdotool click --repeat 2 4  # Wheel up scrolls up
 ```
 
 ### Pattern Syntax
@@ -114,22 +200,19 @@ The above shows how the internal counter `used` and the `max_use` limit prevents
 Basic command structure:
 
 ```bash
-pypedal [OPTIONS] [DEVICE]
+pypedal [OPTIONS]
 ```
 
-Common options:
-- `--config, -c`: Config file with pattern:command mappings
+Options:
+- `--config, -c`: Config file with device and pattern mappings (required)
 - `--quiet, -q`: Suppress additional output
 - `--debug`: Show config structure after loading
 
 Example usage:
 
 ```bash
-# Use default device with config file
+# Run with configuration file
 pypedal -c example.conf
-
-# Specify custom device path
-pypedal /dev/input/event0 -c example.conf
 
 # Debug configuration
 pypedal -c example.conf --debug
@@ -137,6 +220,39 @@ pypedal -c example.conf --debug
 # Quiet mode for less output
 pypedal -c example.conf -q
 ```
+
+Devices are configured in the config file using `dev:` directives. See Device Configuration section.
+
+## Debug Tools
+
+### Device Event Monitor
+
+Use `tools/debug_events.py` to discover event codes from input devices:
+
+```bash
+./tools/debug_events.py /dev/input/event88
+./tools/debug_events.py /dev/input/by-id/usb-VEC_VEC_USB_Footpedal-event-if00
+```
+
+Monitor multiple devices simultaneously:
+```bash
+./tools/debug_events.py /dev/input/event88 /dev/input/event89
+```
+
+The tool displays:
+- Real-time event stream with timestamps
+- Event type, code, and value for each event
+- Human-readable names for event types and codes
+
+Press Ctrl+C to stop monitoring and view suggested configuration:
+```
+Discovered key codes and suggested configuration:
+
+dev: /dev/input/event88 [256,257,258]
+dev: /dev/input/event89 [273]
+```
+
+Copy the suggested `dev:` lines directly into your configuration file.
 
 ## Real-time Feedback
 
@@ -153,9 +269,9 @@ The history display shows:
 - Pattern matching status
 
 ## Supported Devices
-- Works out of the box with "USB 05f3:00ff PI Engineering, Inc. VEC Footpedal" without modification
-- Could be made to work with any Linux event-based input device
-- Button events are currently hard-coded and need to be made dynamic for better device compatibility, see pypedal/core/device.py if you get errors like 'Error: Unknown button code: 275'
+pypedal works with any Linux event-based input device through evdev. Device configuration maps input events to button numbers via the `dev:` configuration syntax.
+
+Use `tools/debug_events.py` to discover device event codes for configuration.
 
 ## Development
 
@@ -178,14 +294,17 @@ The test suite covers:
 pypedal/
 ├── pypedal/
 │   ├── core/
-│   │   ├── config.py      # Configuration handling
-│   │   ├── device.py      # Device event processing
-│   │   ├── history.py     # Event history tracking
-│   │   └── pedal.py       # State management
+│   │   ├── config.py         # Configuration handling
+│   │   ├── device.py         # Device event processing
+│   │   ├── multi_device.py   # Multi-device coordination
+│   │   ├── history.py        # Event history tracking
+│   │   └── pedal.py          # State management
 │   ├── __init__.py
-│   └── cli.py            # Command-line interface
-├── tests/                # Comprehensive test suite
-└── setup.py             # Package configuration
+│   └── cli.py               # Command-line interface
+├── tools/
+│   └── debug_events.py      # Device event discovery
+├── tests/                   # Test suite
+└── setup.py                 # Package configuration
 ```
 
 ## Use Cases

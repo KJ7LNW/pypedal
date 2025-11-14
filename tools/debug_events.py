@@ -41,16 +41,18 @@ def get_code_name(event_type: int, code: int) -> Optional[str]:
 class DeviceMonitor:
     """Monitor input device events and track discovered key codes"""
 
-    def __init__(self, device_paths: List[str]):
+    def __init__(self, device_paths: List[str], sort_codes: bool = False):
         """
         Initialize device monitor
 
         Args:
             device_paths: List of device paths to monitor
+            sort_codes: Whether to sort key codes in output
         """
         self.device_paths = device_paths
         self.devices: Dict[str, InputDevice] = {}
-        self.key_codes: Dict[str, Set[int]] = {}
+        self.key_codes: Dict[str, List[int]] = {}
+        self.sort_codes = sort_codes
         self.running = True
 
         signal.signal(signal.SIGINT, self._handle_interrupt)
@@ -59,17 +61,36 @@ class DeviceMonitor:
     def _handle_interrupt(self, signum: int, frame: Optional[object]) -> None:
         """Handle interrupt signal and display configuration suggestions"""
         self.running = False
-        click.echo()
-        click.secho("Discovered key codes and suggested configuration:", bold=True)
-        click.echo()
+
+        no_events = []
+        configs = []
 
         for path in self.device_paths:
-            codes = sorted(self.key_codes.get(path, set()))
-            if codes:
-                codes_str = ','.join(map(str, codes))
-                click.echo(f"{click.style('dev:', fg='green')} {path} [{codes_str}]")
+            codes = self.key_codes.get(path, [])
+            if not codes:
+                no_events.append(path)
             else:
-                click.secho(f"# No key events detected for: {path}", fg="yellow")
+                if self.sort_codes:
+                    codes = sorted(set(codes))
+                configs.append((path, codes))
+
+        for path in no_events:
+            click.secho(f"# No key events detected for: {path}", fg="yellow")
+
+        click.echo()
+        click.secho("Discovered key codes and suggested configuration:", bold=True)
+
+        for path, codes in configs:
+            codes_str = ','.join(map(str, codes))
+            click.echo(f"{click.style('dev:', fg='green')} {path} [{codes_str}]")
+            click.echo()
+            for i, code in enumerate(codes, 1):
+                code_name = get_code_name(ecodes.EV_KEY, code)
+                if code_name:
+                    click.echo(f"{i}: echo 'button={i} [code {code}, {code_name}]'")
+                else:
+                    click.echo(f"{i}: echo 'button={i} [code {code}]'")
+            click.echo()
 
         sys.exit(0)
 
@@ -85,7 +106,7 @@ class DeviceMonitor:
                     click.echo(f"{click.style('Warning:', fg='yellow')} Could not grab {path}: {e}", err=True)
 
                 self.devices[path] = dev
-                self.key_codes[path] = set()
+                self.key_codes[path] = []
                 click.echo(f"{click.style('Monitoring:', fg='green')} {path}")
             except FileNotFoundError:
                 click.secho(f"Error: Device not found: {path}", fg="red", err=True)
@@ -131,7 +152,8 @@ class DeviceMonitor:
                    f"value={event.value}")
 
         if event.type == ecodes.EV_KEY:
-            self.key_codes[path].add(event.code)
+            if event.code not in self.key_codes[path]:
+                self.key_codes[path].append(event.code)
 
     def monitor_events(self) -> None:
         """Monitor and display events from all devices"""
@@ -155,19 +177,19 @@ class DeviceMonitor:
         finally:
             self.close_devices()
 
-def main() -> None:
-    """Main entry point"""
-    if len(sys.argv) < 2 or sys.argv[1] in ['-h', '--help']:
-        click.echo(__doc__)
-        sys.exit(0 if len(sys.argv) > 1 else 1)
+@click.command()
+@click.option('-s', '--sort', 'sort_codes', is_flag=True, help='Sort key codes in output')
+@click.argument('device_paths', nargs=-1, required=True)
+def main(sort_codes: bool, device_paths: tuple) -> None:
+    """Monitor input device events and suggest configuration.
 
-    device_paths = sys.argv[1:]
-
+    DEVICE_PATHS: One or more input device paths to monitor
+    """
     click.secho("Input Device Event Monitor", bold=True)
     click.echo("Press Ctrl+C to stop and view configuration suggestions")
     click.echo()
 
-    monitor = DeviceMonitor(device_paths)
+    monitor = DeviceMonitor(list(device_paths), sort_codes)
     monitor.monitor_events()
 
 if __name__ == "__main__":

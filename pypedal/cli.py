@@ -4,6 +4,7 @@ Command line interface for pypedal
 import click
 import signal
 import sys
+import os
 from .core import Config, MultiDeviceHandler
 
 def handle_interrupt(signum, frame):
@@ -74,14 +75,36 @@ Note: Release-only events (^) must have corresponding press events (v).
     if not config_handler.devices:
         raise click.UsageError("No devices configured. Add device configs like: dev: /path/to/device [1,2,3]")
 
-    # Create and run multi-device handler
+    # Track config file modification time
+    config_mtime = None
+    if os.path.exists(config):
+        config_mtime = os.stat(config).st_mtime
+
+    # Create and run multi-device handler with config monitoring
     try:
         handler = MultiDeviceHandler(config_handler)
-        handler.read_events()
+        devices = handler.open_devices()
+
+        while devices:
+            current_mtime = os.stat(config).st_mtime
+            if current_mtime != config_mtime:
+                click.secho(f"Configuration reloaded from {config}", fg="green", err=True)
+                handler.close_devices(devices)
+                config_handler = Config(config)
+                config_mtime = current_mtime
+                handler = MultiDeviceHandler(config_handler)
+                devices = handler.open_devices()
+
+            if not handler.process_one_cycle(devices):
+                break
+
     except FileNotFoundError as e:
         raise click.ClickException(str(e))
     except PermissionError as e:
         raise click.ClickException(str(e))
+    finally:
+        if 'devices' in locals():
+            handler.close_devices(devices)
 
 if __name__ == '__main__':
     main()

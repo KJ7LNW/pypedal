@@ -34,6 +34,7 @@ class DeviceHandler:
         self.config = config
         self.quiet = quiet
         self.shared = shared
+        self.device: Optional[InputDevice] = None
 
         if pedal_state is not None:
             self.pedal_state = pedal_state
@@ -41,6 +42,73 @@ class DeviceHandler:
             self.pedal_state = PedalState(buttons=buttons)
 
         self.history = history if history is not None else History()
+
+    def open(self) -> None:
+        """
+        Open device and grab if not shared
+
+        Creates InputDevice and grabs it exclusively unless shared mode enabled
+        """
+        if self.device is not None:
+            return
+
+        self.device = InputDevice(self.device_path)
+        if not self.shared:
+            self.device.grab()
+
+    def close(self) -> None:
+        """
+        Close device and clear reference
+
+        Releases device resources and sets device to None
+        """
+        if self.device is None:
+            return
+
+        try:
+            self.device.close()
+        except:
+            pass
+        self.device = None
+
+    @property
+    def fd(self) -> Optional[int]:
+        """
+        Get file descriptor for select()
+
+        Returns:
+            File descriptor if device is open, None otherwise
+        """
+        return self.device.fd if self.device is not None else None
+
+    @property
+    def is_connected(self) -> bool:
+        """
+        Check if device is currently connected
+
+        Returns:
+            True if device is open, False otherwise
+        """
+        return self.device is not None
+
+    def attempt_reconnection(self) -> bool:
+        """
+        Attempt to reconnect to disconnected device
+
+        Returns:
+            True if reconnection successful, False otherwise
+        """
+        if self.is_connected:
+            return False
+
+        if not os.path.exists(self.device_path):
+            return False
+
+        try:
+            self.open()
+            return True
+        except (OSError, IOError, PermissionError):
+            return False
 
     def find_matching_patterns(self) -> List[ButtonEventPattern]:
         """

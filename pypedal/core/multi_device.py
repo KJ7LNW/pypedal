@@ -53,14 +53,13 @@ class MultiDeviceHandler:
         Open and grab all configured devices
 
         Returns:
-            Dictionary mapping file descriptors to (device, handler) tuples
+            Dictionary mapping file descriptors to handlers
         """
         devices = {}
         for handler in self.handlers:
-            dev = InputDevice(handler.device_path)
-            if not handler.shared:
-                dev.grab()
-            devices[dev.fd] = (dev, handler)
+            handler.open()
+            if handler.fd is not None:
+                devices[handler.fd] = handler
         return devices
 
     def close_devices(self, devices: Dict) -> None:
@@ -68,20 +67,17 @@ class MultiDeviceHandler:
         Close all devices in the provided dictionary
 
         Args:
-            devices: Dictionary mapping file descriptors to (device, handler) tuples
+            devices: Dictionary mapping file descriptors to handlers
         """
-        for dev, _ in devices.values():
-            try:
-                dev.close()
-            except:
-                pass
+        for handler in self.handlers:
+            handler.close()
 
     def process_one_cycle(self, devices: Dict) -> bool:
         """
         Process one select cycle, handling ready events
 
         Args:
-            devices: Dictionary mapping file descriptors to (device, handler) tuples
+            devices: Dictionary mapping file descriptors to handlers
 
         Returns:
             True if processing should continue, False if devices dict is empty
@@ -97,15 +93,15 @@ class MultiDeviceHandler:
 
             if ready:
                 for fd in ready:
-                    dev, handler = devices[fd]
+                    handler = devices[fd]
 
                     try:
-                        event = dev.read_one()
+                        event = handler.device.read_one()
                         if event is not None:
                             handler.process_event(event)
                     except (OSError, IOError):
                         click.secho(f"Device {handler.device_path} disconnected", fg="red", err=True)
-                        dev.close()
+                        handler.close()
                         del devices[fd]
 
             continue_processing = len(devices) > 0

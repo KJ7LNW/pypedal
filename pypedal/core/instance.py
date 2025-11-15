@@ -4,11 +4,13 @@ Instance management for multiple configuration files
 import os
 import click
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
-from evdev import InputDevice
+from typing import Dict, List, TYPE_CHECKING
 from select import select
 from .config import Config
 from .multi_device import MultiDeviceHandler
+
+if TYPE_CHECKING:
+    from .device import DeviceHandler
 
 @dataclass
 class Instance:
@@ -18,11 +20,11 @@ class Instance:
     Each instance represents one configuration file with its associated runtime:
     - config: Configuration data including config.config_file
     - handler: Multi-device event handler
-    - devices: Dictionary mapping file descriptors to (device, handler) tuples
+    - devices: Dictionary mapping file descriptors to handlers for select()
     """
     config: Config
     handler: MultiDeviceHandler
-    devices: Dict[int, Tuple]
+    devices: Dict[int, 'DeviceHandler']
 
 class InstanceManager:
     """Manages multiple configuration instances in a single runtime"""
@@ -71,6 +73,20 @@ class InstanceManager:
 
         return instance
 
+    def attempt_reconnection(self) -> None:
+        """
+        Check for reconnection of previously disconnected devices
+
+        Polls device paths that were disconnected and attempts to reopen
+        them if the path exists again
+        """
+        for instance in self.instances:
+            for handler in instance.handler.handlers:
+                if handler.attempt_reconnection():
+                    if handler.fd is not None:
+                        instance.devices[handler.fd] = handler
+                        click.secho(f"Device {handler.device_path} reconnected", fg="green", err=True)
+
     def reload_if_changed(self) -> None:
         """
         Check all configuration files for modifications and reload if changed
@@ -96,10 +112,9 @@ class InstanceManager:
             instance: Instance whose devices to open
         """
         for handler in instance.handler.handlers:
-            dev = InputDevice(handler.device_path)
-            if not handler.shared:
-                dev.grab()
-            instance.devices[dev.fd] = (dev, handler)
+            handler.open()
+            if handler.fd is not None:
+                instance.devices[handler.fd] = handler
 
     def open_all_devices(self) -> None:
         """Open and grab all devices for all instances"""
@@ -113,11 +128,8 @@ class InstanceManager:
         Args:
             instance: Instance whose devices to close
         """
-        for dev, _ in instance.devices.values():
-            try:
-                dev.close()
-            except:
-                pass
+        for handler in instance.handler.handlers:
+            handler.close()
         instance.devices.clear()
 
     def close_all_devices(self) -> None:
@@ -144,6 +156,7 @@ class InstanceManager:
         continue_processing = False
 
         try:
+            self.attempt_reconnection()
             self.reload_if_changed()
 
             fds = list(all_devices.keys())
@@ -151,15 +164,15 @@ class InstanceManager:
 
             if ready:
                 for fd in ready:
-                    dev, handler = all_devices[fd]
+                    handler = all_devices[fd]
 
                     try:
-                        event = dev.read_one()
+                        event = handler.device.read_one()
                         if event is not None:
                             handler.process_event(event)
                     except (OSError, IOError):
                         click.secho(f"Device {handler.device_path} disconnected", fg="red", err=True)
-                        dev.close()
+                        handler.close()
 
                         for instance in self.instances:
                             if fd in instance.devices:

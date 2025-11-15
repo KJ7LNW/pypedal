@@ -2,6 +2,7 @@
 Instance management for multiple configuration files
 """
 import os
+import time
 import click
 from dataclasses import dataclass
 from typing import Dict, List, TYPE_CHECKING
@@ -112,9 +113,13 @@ class InstanceManager:
             instance: Instance whose devices to open
         """
         for handler in instance.handler.handlers:
-            handler.open()
-            if handler.fd is not None:
-                instance.devices[handler.fd] = handler
+            try:
+                handler.open()
+                if handler.fd is not None:
+                    instance.devices[handler.fd] = handler
+            except (FileNotFoundError, OSError, IOError, PermissionError):
+                # Device does not exist yet, reconnection polling will activate when available
+                pass
 
     def open_all_devices(self) -> None:
         """Open and grab all devices for all instances"""
@@ -146,40 +151,40 @@ class InstanceManager:
         Returns:
             True if processing should continue, False if all devices closed
         """
-        all_devices = {}
-        for instance in self.instances:
-            all_devices.update(instance.devices)
-
-        if not all_devices:
-            return False
-
         continue_processing = False
 
         try:
             self.attempt_reconnection()
             self.reload_if_changed()
 
-            fds = list(all_devices.keys())
-            ready, _, _ = select(fds, [], [], 0.1)
+            all_devices = {}
+            for instance in self.instances:
+                all_devices.update(instance.devices)
 
-            if ready:
-                for fd in ready:
-                    handler = all_devices[fd]
+            if all_devices:
+                fds = list(all_devices.keys())
+                ready, _, _ = select(fds, [], [], 0.1)
 
-                    try:
-                        event = handler.device.read_one()
-                        if event is not None:
-                            handler.process_event(event)
-                    except (OSError, IOError):
-                        click.secho(f"Device {handler.device_path} disconnected", fg="red", err=True)
-                        handler.close()
+                if ready:
+                    for fd in ready:
+                        handler = all_devices[fd]
 
-                        for instance in self.instances:
-                            if fd in instance.devices:
-                                del instance.devices[fd]
-                                break
+                        try:
+                            event = handler.device.read_one()
+                            if event is not None:
+                                handler.process_event(event)
+                        except (OSError, IOError):
+                            click.secho(f"Device {handler.device_path} disconnected", fg="red", err=True)
+                            handler.close()
 
-            continue_processing = len(all_devices) > 0
+                            for instance in self.instances:
+                                if fd in instance.devices:
+                                    del instance.devices[fd]
+                                    break
+            else:
+                time.sleep(0.1)
+
+            continue_processing = True
 
         except Exception as e:
             click.secho(f"Error reading from devices: {str(e)}", fg="red", err=True)

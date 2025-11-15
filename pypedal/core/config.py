@@ -113,6 +113,8 @@ class ButtonEventPattern:
 class Config:
     """Handles configuration file parsing and storage for the pedal device"""
     def __init__(self, config_file: str = None):
+        self.config_file: str = config_file
+        self.mtime: float = 0.0
         self.patterns: List[ButtonEventPattern] = []
         self.devices: List[DeviceConfig] = []
         if config_file and os.path.exists(config_file):
@@ -277,11 +279,33 @@ class Config:
 
     def load(self, config_file: str) -> None:
         """Load configuration from file"""
+        self.config_file = config_file
+        self.mtime = os.stat(config_file).st_mtime
+
         with open(config_file, 'r') as f:
             for line_number, line in enumerate(f, 1):
                 line = line.strip()
                 if line and not line.startswith('#'):
                     self.load_line(line, line_number)
+
+    def reload_if_changed(self) -> bool:
+        """
+        Check if configuration file has been modified and reload if changed
+
+        Returns:
+            True if file was reloaded, False if unchanged
+        """
+        if not self.config_file or not os.path.exists(self.config_file):
+            return False
+
+        current_mtime = os.stat(self.config_file).st_mtime
+        if current_mtime != self.mtime:
+            self.patterns.clear()
+            self.devices.clear()
+            self.load(self.config_file)
+            return True
+
+        return False
 
     def dump_structure(self) -> None:
         """Display the in-memory structure of the configuration"""

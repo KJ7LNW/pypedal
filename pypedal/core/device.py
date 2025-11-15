@@ -1,6 +1,7 @@
 """
 Pedal device event handling functionality
 """
+import os
 import subprocess
 import click
 from typing import Optional, List, Dict
@@ -140,16 +141,24 @@ class DeviceHandler:
             click.secho(f"  Warning: Unexpected event value {event.value} for button {button}", fg="yellow", err=True)
             return
 
+        # Derive instance label from config
+        instance_label = None
+        if self.config and self.config.config_file:
+            instance_label = os.path.basename(self.config.config_file)
+
         # Display current history
         if not self.quiet:
-            self.history.display_all()
+            self.history.display_all(instance_label)
 
         # Find and execute matching patterns
         matching_patterns = self.find_matching_patterns()
         if matching_patterns:
             pattern = matching_patterns[0]
             if not self.quiet:
-                click.secho("  Patterns run:", bold=True)
+                header = "  Patterns run:"
+                if instance_label:
+                    header = f"  Patterns run [{instance_label}]:"
+                click.secho(header, bold=True)
                 click.secho(f"   - {pattern.sequence_str()}: {click.style(pattern.command, fg='yellow', bold=True)}", fg="cyan")
 
             # Execute the command

@@ -32,9 +32,8 @@ def test_command_with_config():
 
     try:
         runner = CliRunner()
-        with patch('pypedal.cli.MultiDeviceHandler') as MockHandler:
-            mock_instance = MockHandler.return_value
-            mock_instance.read_events.side_effect = FileNotFoundError("Device not found")
+        with patch('pypedal.core.instance.InputDevice') as MockDevice:
+            MockDevice.side_effect = FileNotFoundError("Device not found")
             result = runner.invoke(main, ['--config', config_path])
             assert result.exit_code != 0
             assert 'Device not found' in result.output
@@ -57,16 +56,15 @@ def test_command_quiet_mode():
 
     try:
         runner = CliRunner()
-        with patch('pypedal.cli.MultiDeviceHandler') as MockHandler:
-            mock_instance = MockHandler.return_value
-            mock_instance.read_events.side_effect = FileNotFoundError("Device not found")
+        with patch('pypedal.core.instance.InputDevice') as MockDevice:
+            MockDevice.side_effect = FileNotFoundError("Device not found")
             result = runner.invoke(main, ['--quiet', '--config', config_path])
             assert result.exit_code != 0
             assert 'Device not found' in result.output
-            assert 'Using configuration file:' not in result.output
+            assert 'Configuration file:' not in result.output
             result = runner.invoke(main, ['-q', '--config', config_path])
             assert result.exit_code != 0
-            assert 'Using configuration file:' not in result.output
+            assert 'Configuration file:' not in result.output
     finally:
         os.unlink(config_path)
 
@@ -78,9 +76,8 @@ def test_command_permission_error():
 
     try:
         runner = CliRunner()
-        with patch('pypedal.cli.MultiDeviceHandler') as MockHandler:
-            mock_instance = MockHandler.return_value
-            mock_instance.read_events.side_effect = PermissionError("Permission denied")
+        with patch('pypedal.core.instance.InputDevice') as MockDevice:
+            MockDevice.side_effect = PermissionError("Permission denied")
             result = runner.invoke(main, ['--config', config_path])
             assert result.exit_code != 0
             assert 'Permission denied' in result.output

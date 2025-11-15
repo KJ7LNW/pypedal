@@ -114,9 +114,17 @@ class History:
         for i in range(len(self.entries)):
             self.entries[i].used += 1
 
-    def display_all(self) -> None:
-        """Display all history entries"""
+    def display_all(self, instance_label: str = None) -> None:
+        """
+        Display all history entries
+
+        Args:
+            instance_label: Optional label identifying the configuration source
+        """
         if self.entries:
-            click.secho("\n  History:", bold=True)
+            header = "\nHistory:"
+            if instance_label:
+                header = f"\nHistory [{instance_label}]:"
+            click.secho(header, bold=True)
             for entry in self.entries:
                 click.echo("   - " + str(entry))

@@ -6,6 +6,7 @@ from .history import HistoryEntry, History
 from .config import ButtonEventPattern, ButtonEventPatternElement, Config
 from .multi_device import MultiDeviceHandler
 from .device import DeviceHandler
+from .instance import Instance, InstanceManager
 
 __all__ = [
     'PedalState',
@@ -17,5 +18,7 @@ __all__ = [
     'ButtonEventPatternElement',
     'Config',
     'DeviceHandler',
-    'MultiDeviceHandler'
+    'MultiDeviceHandler',
+    'Instance',
+    'InstanceManager'
 ]

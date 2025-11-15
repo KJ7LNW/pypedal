@@ -18,9 +18,9 @@ with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
     config_path = f.name
 
 try:
-    with patch('pypedal.cli.MultiDeviceHandler') as MockHandler:
-        mock_instance = MockHandler.return_value
-        mock_instance.read_events.side_effect = FileNotFoundError("Device not found")
+    with patch('pypedal.core.instance.InstanceManager') as MockManager:
+        mock_instance = MockManager.return_value
+        mock_instance.open_all_devices.side_effect = FileNotFoundError("Device not found")
         result2 = runner.invoke(main, ['--config', config_path])
         print(f"\nAfter test_command_with_config:")
         print(f"  sys.argv: {sys.argv}")

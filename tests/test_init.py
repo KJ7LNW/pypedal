@@ -15,6 +15,8 @@ def test_core_exports():
     assert hasattr(core, 'Config')
     assert hasattr(core, 'DeviceHandler')
     assert hasattr(core, 'MultiDeviceHandler')
+    assert hasattr(core, 'Instance')
+    assert hasattr(core, 'InstanceManager')
 
 def test_import_all():
     """Test that __all__ contains expected exports"""
@@ -28,6 +30,8 @@ def test_import_all():
         'ButtonEventPatternElement',
         'Config',
         'DeviceHandler',
-        'MultiDeviceHandler'
+        'MultiDeviceHandler',
+        'Instance',
+        'InstanceManager'
     }
     assert set(core.__all__) == expected

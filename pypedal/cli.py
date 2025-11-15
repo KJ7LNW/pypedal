@@ -4,8 +4,7 @@ Command line interface for pypedal
 import click
 import signal
 import sys
-import os
-from .core import Config, MultiDeviceHandler
+from .core.instance import InstanceManager
 
 def handle_interrupt(signum, frame):
     """Handle interrupt signal"""
@@ -14,7 +13,7 @@ def handle_interrupt(signum, frame):
 @click.command(context_settings=dict(help_option_names=['-h', '--help']))
 @click.version_option()
 @click.option('--config', '-c', type=click.Path(exists=True, dir_okay=False),
-              help='Config file with device and pattern mappings')
+              multiple=True, help='Config file with device and pattern mappings')
 @click.option('--quiet', '-q', is_flag=True, help='Suppress additional output')
 @click.option('--debug', is_flag=True, help='Show config structure after loading')
 @click.pass_context
@@ -56,7 +55,7 @@ Note: Release-only events (^) must have corresponding press events (v).
       For example, '2^' alone is not valid without a matching '2v' event.
       See the mouse button control example above."""
 
-    if config is None:
+    if not config:
         click.echo(ctx.get_help())
         ctx.exit(0)
 
@@ -64,47 +63,25 @@ Note: Release-only events (^) must have corresponding press events (v).
     signal.signal(signal.SIGINT, handle_interrupt)
     signal.signal(signal.SIGTERM, handle_interrupt)
 
-    # Initialize configuration
-    config_handler = Config(config)
-    if debug:
-        click.echo(f"Using configuration file: {config}")
-        click.echo("Configuration structure:")
-        config_handler.dump_structure()
+    # Initialize instance manager
+    manager = InstanceManager(quiet=quiet, debug=debug)
 
-    # Verify devices configured
-    if not config_handler.devices:
-        raise click.UsageError("No devices configured. Add device configs like: dev: /path/to/device [1,2,3]")
+    for config_file in config:
+        manager.add_config_file(config_file)
 
-    # Track config file modification time
-    config_mtime = None
-    if os.path.exists(config):
-        config_mtime = os.stat(config).st_mtime
-
-    # Create and run multi-device handler with config monitoring
+    # Create and run multi-instance event loop
     try:
-        handler = MultiDeviceHandler(config_handler)
-        devices = handler.open_devices()
+        manager.open_all_devices()
 
-        while devices:
-            current_mtime = os.stat(config).st_mtime
-            if current_mtime != config_mtime:
-                click.secho(f"Configuration reloaded from {config}", fg="green", err=True)
-                handler.close_devices(devices)
-                config_handler = Config(config)
-                config_mtime = current_mtime
-                handler = MultiDeviceHandler(config_handler)
-                devices = handler.open_devices()
-
-            if not handler.process_one_cycle(devices):
-                break
+        while manager.process_one_cycle():
+            pass
 
     except FileNotFoundError as e:
         raise click.ClickException(str(e))
     except PermissionError as e:
         raise click.ClickException(str(e))
     finally:
-        if 'devices' in locals():
-            handler.close_devices(devices)
+        manager.close_all_devices()
 
 if __name__ == '__main__':
     main()

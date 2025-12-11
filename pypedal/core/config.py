@@ -86,7 +86,7 @@ class ButtonEventPatternElement:
 class ButtonEventPattern:
     """
     Represents a sequence of pedal button events with timing and command info
-    
+
     Handles three types of patterns:
     1. Explicit multi-button (1v,2): Requires holding specific buttons
     2. Implicit single-button (1): Press and release triggers command
@@ -96,6 +96,7 @@ class ButtonEventPattern:
     time_constraint: float = float('inf')
     command: str = ""
     line_number: int = 0
+    repeat: bool = False
 
     def __str__(self) -> str:
         pattern = self.sequence_str()
@@ -243,6 +244,13 @@ class Config:
         pattern_str = match.group(1).strip()
         command = match.group(2).split('#')[0].strip()
 
+        # Extract repeat modifier before parsing timing constraint
+        repeat = False
+        repeat_match = re.search(r'\s+repeat\s*$', pattern_str)
+        if repeat_match:
+            repeat = True
+            pattern_str = pattern_str[:repeat_match.start()].strip()
+
         # Match pattern for timing constraint
         timing_match = re.match(r'^(.*?)(?:\s*<\s*([0-9.]+))?$', pattern_str)
         if not timing_match:
@@ -275,7 +283,7 @@ class Config:
                                                           max_use=0))
 
         if sequence:
-            self.patterns.append(ButtonEventPattern(sequence, time_constraint, command, line_number))
+            self.patterns.append(ButtonEventPattern(sequence, time_constraint, command, line_number, repeat))
 
     def load(self, config_file: str) -> None:
         """Load configuration from file"""

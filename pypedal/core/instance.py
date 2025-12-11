@@ -30,17 +30,19 @@ class Instance:
 class InstanceManager:
     """Manages multiple configuration instances in a single runtime"""
 
-    def __init__(self, quiet: bool = False, debug: bool = False):
+    def __init__(self, quiet: bool = False, debug: bool = False, repeat_rate: float = 0.1):
         """
         Initialize instance manager
 
         Args:
             quiet: Suppress additional output
             debug: Show debug information
+            repeat_rate: Repeat rate in seconds for patterns marked with repeat
         """
         self.instances: List[Instance] = []
         self.quiet = quiet
         self.debug = debug
+        self.repeat_rate = repeat_rate
 
     def add_config_file(self, config_file: str) -> Instance:
         """
@@ -142,6 +144,46 @@ class InstanceManager:
         for instance in self.instances:
             self.close_instance_devices(instance)
 
+    def calculate_select_timeout(self) -> float:
+        """
+        Calculate dynamic select timeout based on history state
+
+        Timeout values:
+        - 1.0 seconds when all histories empty (idle state, low CPU usage)
+        - repeat_rate when any repeat pattern matches current history
+        - 0.1 seconds otherwise (default polling rate)
+
+        Returns:
+            Timeout value in seconds for select() call
+        """
+        all_empty = True
+        for instance in self.instances:
+            if instance.handler.history.entries:
+                all_empty = False
+                break
+
+        timeout = 0.1
+
+        if all_empty:
+            timeout = 1.0
+        else:
+            has_repeat = False
+            for instance in self.instances:
+                for handler in instance.handler.handlers:
+                    repeat_patterns = handler.find_repeat_patterns()
+                    if repeat_patterns:
+                        has_repeat = True
+                        break
+                if has_repeat:
+                    break
+
+            if has_repeat:
+                timeout = self.repeat_rate
+            else:
+                timeout = 0.1
+
+        return timeout
+
     def process_one_cycle(self) -> bool:
         """
         Process one select cycle across all instances
@@ -163,7 +205,8 @@ class InstanceManager:
 
             if all_devices:
                 fds = list(all_devices.keys())
-                ready, _, _ = select(fds, [], [], 0.1)
+                timeout = self.calculate_select_timeout()
+                ready, _, _ = select(fds, [], [], timeout)
 
                 if ready:
                     for fd in ready:
@@ -181,6 +224,11 @@ class InstanceManager:
                                 if fd in instance.devices:
                                     del instance.devices[fd]
                                     break
+
+                # Check and fire repeats every cycle (timer-based, not timeout-based)
+                for instance in self.instances:
+                    for handler in instance.handler.handlers:
+                        handler.check_and_fire_repeats(self.repeat_rate)
             else:
                 time.sleep(0.1)
 

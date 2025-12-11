@@ -16,8 +16,10 @@ def handle_interrupt(signum, frame):
               multiple=True, help='Config file with device and pattern mappings')
 @click.option('--quiet', '-q', is_flag=True, help='Suppress additional output')
 @click.option('--debug', is_flag=True, help='Show config structure after loading')
+@click.option('--repeat-rate', '-r', type=float, default=0.1,
+              help='Repeat rate in seconds for patterns marked with repeat (default: 0.1)')
 @click.pass_context
-def main(ctx, config, quiet, debug):
+def main(ctx, config, quiet, debug, repeat_rate):
     """pypedal - A Python-based command line tool for multiple USB foot pedals.
 
 The configuration file supports the following patterns for the pedal's buttons:
@@ -33,6 +35,7 @@ Pattern syntax:
     Nv,Mv,M^ < T: command   Execute when sequence is within T seconds
     N: command          Shorthand for Nv,N^ (button press and release)
     2v,2^: command      Execute when button 2 pressed and released (see max_use)
+    Nv repeat: command  Execute repeatedly while button N held (rate set via --repeat-rate)
 
 \b
 Example config file:
@@ -64,7 +67,7 @@ Note: Release-only events (^) must have corresponding press events (v).
     signal.signal(signal.SIGTERM, handle_interrupt)
 
     # Initialize instance manager
-    manager = InstanceManager(quiet=quiet, debug=debug)
+    manager = InstanceManager(quiet=quiet, debug=debug, repeat_rate=repeat_rate)
 
     for config_file in config:
         manager.add_config_file(config_file)

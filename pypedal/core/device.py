@@ -3,6 +3,7 @@ Pedal device event handling functionality
 """
 import os
 import subprocess
+import time
 import click
 from typing import Optional, List, Dict
 from evdev import InputDevice, ecodes
@@ -35,6 +36,7 @@ class DeviceHandler:
         self.quiet = quiet
         self.shared = shared
         self.device: Optional[InputDevice] = None
+        self.last_repeat_time: Optional[float] = None
 
         if pedal_state is not None:
             self.pedal_state = pedal_state
@@ -174,6 +176,110 @@ class DeviceHandler:
 
         return matching_patterns
 
+    def find_repeat_patterns(self) -> List[ButtonEventPattern]:
+        """
+        Find repeat patterns matching current history, ignoring max_use constraints
+
+        Repeat patterns can fire continuously without consuming history entries.
+        This differs from find_matching_patterns() which respects max_use limits
+        to prevent single-button patterns from combining with longer sequences.
+
+        Returns:
+            List of repeat-enabled patterns matching current history state
+        """
+        if not self.config or not self.history.entries:
+            return []
+
+        matching = []
+        history = self.history.entries
+        history_len = len(history)
+
+        for pattern in self.config.patterns:
+            if not pattern.repeat:
+                continue
+
+            if len(pattern.sequence) != history_len:
+                continue
+
+            if history_len > 1:
+                time_diff = (history[-1].timestamp - history[0].timestamp).total_seconds()
+                if time_diff > pattern.time_constraint:
+                    continue
+
+            matches = True
+            for j in range(history_len):
+                if not pattern.sequence[j].matches(history[j]):
+                    matches = False
+                    break
+
+            if matches:
+                matching.append(pattern)
+
+        return matching
+
+    def check_and_fire_repeats(self, repeat_rate: float) -> None:
+        """
+        Check timer and fire repeat patterns if interval elapsed
+
+        Uses monotonic time as single source of truth for repeat timing.
+        Timer is independent of select() behavior, ensuring consistent
+        intervals without jitter from spurious events.
+
+        First repeat fires after 2x interval to prevent rapid double-fire.
+        Subsequent repeats fire at normal interval.
+
+        Args:
+            repeat_rate: Seconds between repeat fires
+
+        Fires when:
+        - Repeat patterns match current history AND
+        - Timer interval has elapsed (2x for first repeat, 1x for subsequent)
+        """
+        repeat_patterns = self.find_repeat_patterns()
+
+        if not repeat_patterns:
+            self.last_repeat_time = None
+            return
+
+        now = time.monotonic()
+        should_fire = False
+        required_interval = repeat_rate
+
+        if self.last_repeat_time is None:
+            should_fire = False
+        elif self.last_repeat_time < 0:
+            required_interval = repeat_rate * 2
+            elapsed = now - abs(self.last_repeat_time)
+            if elapsed >= required_interval:
+                should_fire = True
+        elif (now - self.last_repeat_time) >= repeat_rate:
+            should_fire = True
+        else:
+            should_fire = False
+
+        if not should_fire:
+            return
+
+        self.last_repeat_time = now
+
+        instance_label = None
+        if self.config and self.config.config_file:
+            instance_label = os.path.basename(self.config.config_file)
+
+        for pattern in repeat_patterns:
+            if not self.quiet:
+                header = "  Repeat pattern:"
+                if instance_label:
+                    header = f"  Repeat pattern [{instance_label}]:"
+                click.secho(header, bold=True)
+                click.secho(f"   - {pattern.sequence_str()}: {click.style(pattern.command, fg='yellow', bold=True)}", fg="cyan")
+
+            try:
+                subprocess.run(pattern.command, shell=True, check=True)
+            except subprocess.CalledProcessError as e:
+                if not self.quiet:
+                    click.secho(f"  Warning: Repeat command failed (exit code {e.returncode})", fg="yellow", err=True)
+
     def process_event(self, event) -> None:
         """
         Process a single event from the pedal device
@@ -232,11 +338,19 @@ class DeviceHandler:
             # Execute the command
             subprocess.run(pattern.command, shell=True, check=True)
 
-            # Mark history entries as used to prevent reuse
-            self.history.set_used()
+            # Mark history entries as used to prevent reuse, unless pattern repeats
+            # Repeat patterns skip incrementing used counter to allow continuous matching
+            if not pattern.repeat:
+                self.history.set_used()
+            else:
+                self.last_repeat_time = -time.monotonic()
 
         # Clean up history after command execution
         self.history.pop_released(self.pedal_state.get_state())
+
+        # Reset repeat timer when history is cleared
+        if not self.history.entries:
+            self.last_repeat_time = None
 
     def read_events(self) -> None:
         """Read and process events from the pedal device"""

@@ -114,6 +114,18 @@ def test_device_config(tmp_path):
     assert pattern.sequence[0] == ButtonEventPatternElement(Button(1), ButtonEvent.BUTTON_DOWN)
     assert pattern.sequence[1] == ButtonEventPatternElement(Button(2), ButtonEvent.BUTTON_DOWN)
 
+def test_invalid_button_reference_raises(tmp_path):
+    """Test that a pattern referencing a button not assigned to any device raises ValueError"""
+    config_file = tmp_path / "test_invalid.conf"
+    config_file.write_text(
+        "dev: /dev/input/event0 [1,2,3]\n"
+        "4: some_command\n"
+    )
+
+    with pytest.raises(ValueError, match="button 4 not available"):
+        Config(str(config_file))
+
+
 def test_config_load_with_timing(tmp_path):
     config_file = tmp_path / "test_config.conf"
     config_file.write_text(

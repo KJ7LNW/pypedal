@@ -79,6 +79,8 @@ Note: Release-only events (^) must have corresponding press events (v).
         while manager.process_one_cycle():
             pass
 
+    except ValueError as e:
+        raise click.ClickException(str(e))
     except FileNotFoundError as e:
         raise click.ClickException(str(e))
     except PermissionError as e:

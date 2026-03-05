@@ -285,6 +285,27 @@ class Config:
         if sequence:
             self.patterns.append(ButtonEventPattern(sequence, time_constraint, command, line_number, repeat))
 
+    def validate_button_references(self) -> None:
+        """
+        Verify all pattern button references exist in configured devices
+
+        Raises:
+            ValueError: If a pattern references a button not assigned to any device
+        """
+        if not self.devices:
+            return
+
+        valid_buttons = {b for dc in self.devices for b in dc.get_buttons()}
+
+        for pattern in self.patterns:
+            for element in pattern.sequence:
+                if element.button not in valid_buttons:
+                    raise ValueError(
+                        f"{self.config_file}:{pattern.line_number}: "
+                        f"button {element.button} not available "
+                        f"(valid buttons: {sorted(valid_buttons)})"
+                    )
+
     def load(self, config_file: str) -> None:
         """Load configuration from file"""
         self.config_file = config_file
@@ -295,6 +316,8 @@ class Config:
                 line = line.strip()
                 if line and not line.startswith('#'):
                     self.load_line(line, line_number)
+
+        self.validate_button_references()
 
     def reload_if_changed(self) -> bool:
         """
